@@ -86,7 +86,7 @@ for dr in dirs:
     print(str(dirs.index(dr) + 1) + ".", os.path.join(os.getcwd(), dr))
     
 dirsptr = len(dirs) + 1
-while dirsptr > len(dirs):
+while dirsptr > len(dirs) or dirsptr == 0:
     dirsptr = int(input("choose directory :// "))
 
 aes_dir = os.path.join(os.getcwd(), dirs[dirsptr - 1])
@@ -103,8 +103,9 @@ if (choice.lower() == "decrypt"):
         _delete = True
         if (input("make files completely unrecoverable by professional software? (takes longer) y/n ://").lower() == "y"):
             secure = True
+    start = time.time()
     decryptfolder2(aes_dir,_delete,secure)
-if (choice.lower() == "purge"):
+elif (choice.lower() == "purge"):
     filters = []
     secure = False
     print("enter file extensions to be purged below and type none in console to stop adding extensions")
@@ -115,10 +116,12 @@ if (choice.lower() == "purge"):
             filters.append(inp)
     if (input("make files completely unrecoverable by professional software? (takes longer) y/n ://").lower() == "y"):
         secure = True
+    start = time.time()
     PurgeFiles2(aes_dir,filters,secure)
-if (choice.lower() == "obscure"):
+elif (choice.lower() == "obscure"):
+    start = time.time()
     obscurefiles(aes_dir)
-if (choice.lower() == "encrypt"):
+elif (choice.lower() == "encrypt"):
     password = input("enter encryption key ://")
     _delete = False
     secure = False
@@ -126,6 +129,14 @@ if (choice.lower() == "encrypt"):
         _delete = True
         if (input("make files completely unrecoverable by professional software? (takes longer) y/n ://").lower() == "y"):
             secure = True
+    start = time.time()
     encryptfolder(aes_dir,_delete,secure)
+else:
+    print("nothing selected. program will exit in 5 seconds")
+    time.sleep(5)
+    sys.exit()
+end = time.time()
+print("time elapsed", end-start, "seconds")
 print("-------------------------------------------console will close in 5 seconds--------------------------------------------")
 time.sleep(5)
+
