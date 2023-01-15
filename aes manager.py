@@ -75,27 +75,28 @@ def obscurefiles(folder):
             os.rename(os.path.join(root, file), os.path.join(root, newname))
         print("traversal branch completed.",root, len(files), "files traversed")
     print("finished obscuring",folder)
-print("this program should be placed one level above the desired folder")
-
 dirs = openfolderprompt()
 if len(dirs) == 0:
-    print("no directories in this folder, please change the location, the program will exit in 5 seconds")
+    print("no directories in this folder, please change this programs location, the program will exit in 5 seconds")
     time.sleep(5)
     sys.exit()
-print("found", len(dirs), "directories")
+print(len(dirs), "directories discovered in directory", os.getcwd())
 
 for dr in dirs:
     print(str(dirs.index(dr) + 1) + ".", os.path.join(os.getcwd(), dr))
     
 dirsptr = len(dirs) + 1
 while dirsptr > len(dirs):
-    dirsptr = int(input("enter choice of directory ://"))
-print("selected",os.path.join(os.getcwd(), dirs[dirsptr - 1]))
+    dirsptr = int(input("choose directory :// "))
 
 aes_dir = os.path.join(os.getcwd(), dirs[dirsptr - 1])
-choice = input("enter choice decrypt/purge/obscure/encrypt ://")
+print(" decrypt - decrypts all .aes files in the selected directory")
+print(" purge   - deletes selected file extensions in the directory")
+print(" obscure - randomises all file names  the selected directory")
+print(" encrypt - encrypts all non .aes file types in the directory")
+choice = input("enter choice :// ")
 if (choice.lower() == "decrypt"):
-    password = input("enter decryption key ://")
+    password = input("enter decryption key :// ")
     _delete = False
     secure = False
     if (input("delete encrypted version? y/n ://").lower() == "y"):
@@ -112,9 +113,6 @@ if (choice.lower() == "purge"):
         inp = input("add a new extension to purge e.g .png ://")
         if inp.lower() != "none":
             filters.append(inp)
-    print("selected filters:")
-    for filt in filters:
-        print(str(filters.index(filt) + 1) + ".", filt)
     if (input("make files completely unrecoverable by professional software? (takes longer) y/n ://").lower() == "y"):
         secure = True
     PurgeFiles2(aes_dir,filters,secure)
