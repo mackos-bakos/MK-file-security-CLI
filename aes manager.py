@@ -4,90 +4,72 @@ import time
 import random
 import sys
 aescrypt_path = 'C:/Program Files/AESCrypt/aescrypt.exe'
-def openfolderprompt():
-    os.chdir(os.getcwd())
-    files = os.listdir()
-    paths = []
-    for file in files:
-        if os.path.isdir(file):
-            paths.append(file)
-    return paths
-#def openfileprompt(): # works
-#    dlg = win32ui.CreateFileDialog(1)
-#    dlg.SetOFNInitialDir(os.getcwd())
-#    dlg.DoModal()
-#    directory = dlg.GetPathName()
-#    return directory
-def writerandomdata(file):
-    filesize = os.path.getsize(file)
-    for i in range(3):
+def get_all_dirs(directory):
+    return  [file for file in os.listdir(directory) if os.path.isdir(file)]
+def overwrite_data(file):
+    for i in range(5):
         with open(file, 'wb') as f:
-            f.write(os.urandom(filesize))
-def PurgeFiles2(folder,accepted_file_types,secure):
+            f.write(os.urandom(os.path.getsize(file)))
+def purge_directory(folder,accepted_file_types,secure):
     for root, dirs, files in os.walk(folder):
         for file in files:
             if (os.path.splitext(file)[1] not in accepted_file_types):
                 continue
-            try:
-                if (secure):
-                    writerandomdata(os.path.join(root, file))
-                os.remove(os.path.join(root, file))
-            except:
-                print("failed to remove :", os.path.abspath(os.path.join(root, file)))
-        print("traversal branch completed.",root, len(files), "files traversed")
-    print("finished purging", folder)
-def decryptfolder2(_file,delete,secure):
-    for root, dirs, files in os.walk(_file):
+            if (secure):
+                overwrite_data(os.path.join(root, file))
+            os.remove(os.path.join(root, file))
+        print(f"succesful operation completed at {root}, {len(files)} files traversed")
+    print(f"finished purging {folder}")
+def decrypt_directory(folder,delete,secure):
+    for root, dirs, files in os.walk(folder):
         for file in files:
             if (os.path.splitext(file)[1] != ".aes"):
                 continue
             subprocess.run([aescrypt_path, '-d', '-p', password, os.path.join(root, file)])
             if delete:
                 if (secure):
-                    writerandomdata(os.path.join(root, file))
+                    overwrite_data(os.path.join(root, file))
                 os.remove(os.path.join(root, file))
-        print("traversal branch completed.",root, len(files), "files traversed")
-    print("finished decrypting", _file)
-def encryptfolder(_file,delete,secure):
-    for root, dirs, files in os.walk(_file):
-        for file in files:
-            if (os.path.splitext(file)[1] == ".aes"):
-                continue
-            subprocess.run([aescrypt_path, '-e', '-p', password, os.path.join(root, file)])
-            if delete:
-                if (secure):
-                    writerandomdata(os.path.join(root, file))
-                os.remove(os.path.join(root, file))
-        print("traversal branch completed.",root, len(files), "files traversed")
-    print("finished encrypting", _file)
-def obscurefiles(folder):
+        print(f"succesful operation completed at {root}, {len(files)} files traversed")
+    print(f"finished decrypting {folder}")
+def encrypt_directory(folder,delete,secure):
     for root, dirs, files in os.walk(folder):
         for file in files:
-            extension = os.path.splitext(file)[1]
-            newname = ""
-            
-            for x in range(7):
-                newname+=chr(random.randint(128,512))
-            if len(os.path.splitext(file)[0].split(".")) > 1:
-                newname += "." + os.path.splitext(file)[0].split(".")[1]
-                
-            newname += extension
+            if (os.path.splitext(file)[1] != ".aes"):
+                subprocess.run([aescrypt_path, '-e', '-p', password, os.path.join(root, file)])
+                if delete:
+                    if (secure):
+                        overwrite_data(os.path.join(root, file))
+                    os.remove(os.path.join(root, file))
+        print(f"succesful operation completed at {root}, {len(files)} files traversed")
+    print(f"finished encrypting {folder}")
+def obscure_directory(folder):
+    for root, dirs, files in os.walk(folder):
+        for file in files:
+            name, ext = os.path.splitext(file)
+            newname = ''.join(chr(random.randint(128, 512)) for _ in range(7))
+            if len(name.split('.')) > 1:
+                newname += '.' + name.split('.')[1]
+            newname += ext
             os.rename(os.path.join(root, file), os.path.join(root, newname))
-        print("traversal branch completed.",root, len(files), "files traversed")
-    print("finished obscuring",folder)
-dirs = openfolderprompt()
-if len(dirs) == 0:
-    print("no directories in this folder, please change this programs location, the program will exit in 5 seconds")
+        print(f"succesful operation completed at {root}, {len(files)} files traversed")
+    print(f"finished obscuring {folder}")
+    
+dirs = get_all_dirs(os.getcwd())
+if not dirs:
+    print("No directories in this folder, please change this program's location. The program will exit in 5 seconds.")
     time.sleep(5)
     sys.exit()
-print(len(dirs), "directories discovered in directory", os.getcwd())
 
-for dr in dirs:
-    print(str(dirs.index(dr) + 1) + ".", os.path.join(os.getcwd(), dr))
-    
-dirsptr = len(dirs) + 1
-while dirsptr > len(dirs) or dirsptr == 0:
-    dirsptr = int(input("choose directory :// "))
+print(f"{len(dirs)} directories discovered in directory {os.getcwd()}")
+
+for i, dr in enumerate(dirs):
+    print(f"{i+1}. {os.path.join(os.getcwd(), dr)}")
+
+while True:
+    dirsptr = int(input("Choose directory: "))
+    if 0 < dirsptr <= len(dirs):
+        break
 
 aes_dir = os.path.join(os.getcwd(), dirs[dirsptr - 1])
 print(" decrypt - decrypts all .aes files in the selected directory")
@@ -98,45 +80,58 @@ choice = input("enter choice :// ")
 if (choice.lower() == "decrypt"):
     password = input("enter decryption key :// ")
     _delete = False
-    secure = False
+    _secure = False
     if (input("delete encrypted version? y/n ://").lower() == "y"):
         _delete = True
         if (input("make files completely unrecoverable by professional software? (takes longer) y/n ://").lower() == "y"):
-            secure = True
+            _secure = True
     start = time.time()
-    decryptfolder2(aes_dir,_delete,secure)
+    decrypt_directory(aes_dir,_delete,_secure)
+
 elif (choice.lower() == "purge"):
     filters = []
     secure = False
     print("enter file extensions to be purged below and type none in console to stop adding extensions")
     inp = ""
-    while inp.lower() != "none":
+    while True:
         inp = input("add a new extension to purge e.g .png ://")
-        if inp.lower() != "none":
+        if inp.lower() == "none":
+            break
+        else:
             filters.append(inp)
-    if (input("make files completely unrecoverable by professional software? (takes longer) y/n ://").lower() == "y"):
+    if input("make files completely unrecoverable by professional software? (takes longer) y/n ://").lower() == "y":
         secure = True
     start = time.time()
-    PurgeFiles2(aes_dir,filters,secure)
+    purge_directory(aes_dir,filters,secure)
+
 elif (choice.lower() == "obscure"):
     start = time.time()
-    obscurefiles(aes_dir)
+    obscure_directory(aes_dir)
+
 elif (choice.lower() == "encrypt"):
     password = input("enter encryption key ://")
     _delete = False
-    secure = False
+    _secure = False
     if (input("delete unencrypted version? y/n ://").lower() == "y"):
         _delete = True
         if (input("make files completely unrecoverable by professional software? (takes longer) y/n ://").lower() == "y"):
-            secure = True
+            _secure = True
     start = time.time()
-    encryptfolder(aes_dir,_delete,secure)
+    encrypt_directory(aes_dir,_delete,_secure)
+
 else:
     print("nothing selected. program will exit in 5 seconds")
     time.sleep(5)
     sys.exit()
+
 end = time.time()
 print("time elapsed", end-start, "seconds")
 print("-------------------------------------------console will close in 5 seconds--------------------------------------------")
 time.sleep(5)
 
+#def openfileprompt(): # works
+#    dlg = win32ui.CreateFileDialog(1)
+#    dlg.SetOFNInitialDir(os.getcwd())
+#    dlg.DoModal()
+#    directory = dlg.GetPathName()
+#    return directory
