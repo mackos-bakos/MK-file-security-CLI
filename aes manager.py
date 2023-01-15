@@ -35,7 +35,7 @@ def decrypt_directory(folder,delete,secure):
             if (os.path.splitext(file)[1] != ".aes"):
                 continue
             subprocess.run([aescrypt_path, '-d', '-p', password, os.path.join(root, file)])
-            if delete:
+            if delete and os.path.exists(os.path.join(root, file[:-4])):
                 if (secure):
                     overwrite_data(os.path.join(root, file))
                 os.remove(os.path.join(root, file))
@@ -48,7 +48,7 @@ def encrypt_directory(folder,delete,secure,backup):
                 subprocess.run([aescrypt_path, '-e', '-p', password, os.path.join(root, file)])
                 if backup:
                     copy_file_to(os.path.join(root, file) + ".aes",os.path.join(appdata_directory,file) + ".aes")
-                if delete:
+                if delete and os.path.exists(os.path.join(root, file + ".aes")):
                     if (secure):
                         overwrite_data(os.path.join(root, file))
                     os.remove(os.path.join(root, file))
