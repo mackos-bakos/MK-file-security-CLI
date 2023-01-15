@@ -4,6 +4,15 @@ import time
 import random
 import sys
 aescrypt_path = 'C:/Program Files/AESCrypt/aescrypt.exe'
+appdata_directory = os.path.join(os.getenv('APPDATA'), 'backups')
+if not os.path.exists(appdata_directory):
+    os.makedirs(appdata_directory)
+    print(f"created a directory at {appdata_directory}")
+def copy_file_to(source,destination):
+    with open(source, 'rb') as read_file: 
+        with open(destination, 'wb') as write_file: 
+            for line in read_file: 
+                write_file.write(line) 
 def get_all_dirs(directory):
     return  [file for file in os.listdir(directory) if os.path.isdir(file)]
 def overwrite_data(file):
@@ -32,11 +41,13 @@ def decrypt_directory(folder,delete,secure):
                 os.remove(os.path.join(root, file))
         print(f"succesful operation completed at {root}, {len(files)} files traversed")
     print(f"finished decrypting {folder}")
-def encrypt_directory(folder,delete,secure):
+def encrypt_directory(folder,delete,secure,backup):
     for root, dirs, files in os.walk(folder):
         for file in files:
             if (os.path.splitext(file)[1] != ".aes"):
                 subprocess.run([aescrypt_path, '-e', '-p', password, os.path.join(root, file)])
+                if backup:
+                    copy_file_to(os.path.join(root, file) + ".aes",os.path.join(appdata_directory,file) + ".aes")
                 if delete:
                     if (secure):
                         overwrite_data(os.path.join(root, file))
@@ -112,12 +123,15 @@ elif (choice.lower() == "encrypt"):
     password = input("enter encryption key ://")
     _delete = False
     _secure = False
+    _backup = False
     if (input("delete unencrypted version? y/n ://").lower() == "y"):
         _delete = True
         if (input("make files completely unrecoverable by professional software? (takes longer) y/n ://").lower() == "y"):
             _secure = True
+    if (input("backup encrypted file in appdata? y/n ://").lower() == "y"):
+        _backup = True
     start = time.time()
-    encrypt_directory(aes_dir,_delete,_secure)
+    encrypt_directory(aes_dir,_delete,_secure,_backup)
 
 else:
     print("nothing selected. program will exit in 5 seconds")
