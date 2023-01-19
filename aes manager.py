@@ -2,24 +2,37 @@ import subprocess
 import os
 import time
 import random
+import math
 import sys
 aescrypt_path = 'C:/Program Files/AESCrypt/aescrypt.exe'
 appdata_directory = os.path.join(os.getenv('APPDATA'), 'backups')
 if not os.path.exists(appdata_directory):
     os.makedirs(appdata_directory)
     print(f"created a directory at {appdata_directory}")
+
+def progress_bar(percent=0, width=30): 
+	left = width * percent // 100 
+	right = width - left 
+	print('\r[', '#' * left, ' ' * right, ']',
+           f' {percent:.0f}%',
+           sep='', end='', flush=True)
+    
 def copy_file_to(source,destination):
     with open(source, 'rb') as read_file: 
         with open(destination, 'wb') as write_file: 
             for line in read_file: 
-                write_file.write(line) 
+                write_file.write(line)
+                
 def get_all_dirs(directory):
     return  [file for file in os.listdir(directory) if os.path.isdir(file)]
+
 def overwrite_data(file):
     for i in range(5):
         with open(file, 'wb') as f:
             f.write(os.urandom(os.path.getsize(file)))
+            
 def purge_directory(folder,accepted_file_types,secure):
+    files_purged = 0
     for root, dirs, files in os.walk(folder):
         for file in files:
             if (os.path.splitext(file)[1] not in accepted_file_types):
@@ -27,34 +40,43 @@ def purge_directory(folder,accepted_file_types,secure):
             if (secure):
                 overwrite_data(os.path.join(root, file))
             os.remove(os.path.join(root, file))
-        print(f"succesful operation completed at {root}, {len(files)} files traversed")
-    print(f"finished purging {folder}")
+            files_purged += 1
+            progress_bar(math.ceil((files.index(file) / len(files)) * 100))
+    print(f" \n finished purging {folder} purged {files_purged} files")
+    
 def decrypt_directory(folder,delete,secure):
+    files_decrypted = 0
     for root, dirs, files in os.walk(folder):
         for file in files:
             if (os.path.splitext(file)[1] != ".aes"):
                 continue
             subprocess.run([aescrypt_path, '-d', '-p', password, os.path.join(root, file)])
+            files_decrypted += 1
             if delete and os.path.exists(os.path.join(root, file[:-4])):
                 if (secure):
                     overwrite_data(os.path.join(root, file))
                 os.remove(os.path.join(root, file))
-        print(f"succesful operation completed at {root}, {len(files)} files traversed")
-    print(f"finished decrypting {folder}")
+            progress_bar(math.ceil((files.index(file) / len(files)) * 100))
+    print(f" \n finished decrypting {folder} decrypted {files_decrypted} files")
+    
 def encrypt_directory(folder,delete,secure,backup):
+    files_encrypted = 0
     for root, dirs, files in os.walk(folder):
         for file in files:
             if (os.path.splitext(file)[1] != ".aes"):
                 subprocess.run([aescrypt_path, '-e', '-p', password, os.path.join(root, file)])
+                files_encrypted += 1
                 if backup:
                     copy_file_to(os.path.join(root, file) + ".aes",os.path.join(appdata_directory,file) + ".aes")
                 if delete and os.path.exists(os.path.join(root, file + ".aes")):
                     if (secure):
                         overwrite_data(os.path.join(root, file))
                     os.remove(os.path.join(root, file))
-        print(f"succesful operation completed at {root}, {len(files)} files traversed")
-    print(f"finished encrypting {folder}")
+            progress_bar(math.ceil((files.index(file) / len(files)) * 100))
+    print(f" \n finished encrypting {folder} encrypted {files_encrypted} files")
+    
 def obscure_directory(folder):
+    files_obscured = 0
     for root, dirs, files in os.walk(folder):
         for file in files:
             name, ext = os.path.splitext(file)
@@ -63,8 +85,27 @@ def obscure_directory(folder):
                 newname += '.' + name.split('.')[1]
             newname += ext
             os.rename(os.path.join(root, file), os.path.join(root, newname))
-        print(f"succesful operation completed at {root}, {len(files)} files traversed")
-    print(f"finished obscuring {folder}")
+            files_obscured+=1
+            progress_bar(math.ceil((files.index(file) / len(files)) * 100))
+    print(f" \n finished obscuring {folder} obscured {files_obscured} files")
+
+def swap_file_extensions(folder,swap_from,swap_to):
+    files_swapped = 0
+    for root, dirs, files in os.walk(folder):
+        for file in files:
+            name, ext = os.path.splitext(file)
+            if (ext not in [swap_from,".aes"]):
+                continue
+            if (ext == ".aes" and name.split(".")[1] == swap_from[1:]):
+                newname = name[:-4] + swap_to + ".aes"
+            elif (ext == swap_from):
+                newname = name + swap_to
+            else:
+                continue
+            os.rename(os.path.join(root, file), os.path.join(root, newname))
+            files_swapped += 1
+            progress_bar(math.ceil((files.index(file) / len(files)) * 100))
+    print(f" \n finished swapping {folder} and swapped {files_swapped} files")
     
 dirs = get_all_dirs(os.getcwd())
 if not dirs:
@@ -87,6 +128,7 @@ print(" decrypt - decrypts all .aes files in the selected directory")
 print(" purge   - deletes selected file extensions in the directory")
 print(" obscure - randomises all file names  the selected directory")
 print(" encrypt - encrypts all non .aes file types in the directory")
+print(" swap    - swaps all file extensions for  selected directory")
 choice = input("enter choice :// ")
 if (choice.lower() == "decrypt"):
     password = input("enter decryption key :// ")
@@ -132,7 +174,17 @@ elif (choice.lower() == "encrypt"):
         _backup = True
     start = time.time()
     encrypt_directory(aes_dir,_delete,_secure,_backup)
-
+    
+elif (choice.lower() == "swap"):
+    _swap_from = input("swap from e.g .png :// ")
+    _swap_to = input("swap from e.g .jpg :// ")
+    if len(_swap_from) < 4 or len(_swap_to) < 4:
+        print("invalid input the program will exit in 5 seconds")
+        time.sleep(5)
+        sys.exit()
+    start = time.time()
+    swap_file_extensions(aes_dir,_swap_from,_swap_to)
+    
 else:
     print("nothing selected. program will exit in 5 seconds")
     time.sleep(5)
