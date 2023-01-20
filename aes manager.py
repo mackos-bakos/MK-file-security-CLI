@@ -4,19 +4,20 @@ import time
 import random
 import math
 import sys
+import threading
 aescrypt_path = 'C:/Program Files/AESCrypt/aescrypt.exe'
 appdata_directory = os.path.join(os.getenv('APPDATA'), 'backups')
+
 if not os.path.exists(appdata_directory):
     os.makedirs(appdata_directory)
     print(f"created a directory at {appdata_directory}")
 
-def progress_bar(percent=0, width=30): 
+def progress_bar(percent=0, width=30, file = None): 
 	left = width * percent // 100 
 	right = width - left 
 	print('\r[', '#' * left, ' ' * right, ']',
-           f' {percent:.0f}%',
+           f' {percent:.0f}%   {file}',
            sep='', end='', flush=True)
-    
 def copy_file_to(source,destination):
     with open(source, 'rb') as read_file: 
         with open(destination, 'wb') as write_file: 
@@ -31,64 +32,98 @@ def overwrite_data(file):
         with open(file, 'wb') as f:
             f.write(os.urandom(os.path.getsize(file)))
             
-def purge_directory(folder,accepted_file_types,secure):
+def purge_directory(folder, accepted_file_types, secure):
     files_purged = 0
+    threads = []
     for root, dirs, files in os.walk(folder):
         for file in files:
             if (os.path.splitext(file)[1] not in accepted_file_types):
                 continue
-            if (secure):
-                overwrite_data(os.path.join(root, file))
-            os.remove(os.path.join(root, file))
+            thread = threading.Thread(target=purge_file, args=(file,secure,root))
+            threads.append(thread)
+            thread.start()
+            progress_bar(math.ceil((files.index(file) / len(files)) * 100), 30, file)
             files_purged += 1
-            progress_bar(math.ceil((files.index(file) / len(files)) * 100))
+    for thread in threads:
+        thread.join()
+
     print(f" \n finished purging {folder} purged {files_purged} files")
+    
+def purge_file(file,secure,root):
+    if (secure):
+        overwrite_data(os.path.join(root, file))
+    os.remove(os.path.join(root, file))
     
 def decrypt_directory(folder,delete,secure):
     files_decrypted = 0
+    threads = []
     for root, dirs, files in os.walk(folder):
         for file in files:
             if (os.path.splitext(file)[1] != ".aes"):
                 continue
-            subprocess.run([aescrypt_path, '-d', '-p', password, os.path.join(root, file)])
+            if (os.path.isdir(file)):
+                continue
+            thread = threading.Thread(target=decrypt_file, args=(os.path.join(root, file), delete, secure,root))
+            thread.start()
+            threads.append(thread)
             files_decrypted += 1
-            if delete and os.path.exists(os.path.join(root, file[:-4])):
-                if (secure):
-                    overwrite_data(os.path.join(root, file))
-                os.remove(os.path.join(root, file))
-            progress_bar(math.ceil((files.index(file) / len(files)) * 100))
+            progress_bar(math.ceil((files.index(file) / len(files)) * 100),30,file)
+    for thread in threads:
+        thread.join()
     print(f" \n finished decrypting {folder} decrypted {files_decrypted} files")
+
+def decrypt_file(file, delete, secure,root):
+    subprocess.run([aescrypt_path, '-d', '-p', password, file])
+    if delete and os.path.exists(os.path.join(root, file[:-4])):
+        if (secure):
+            overwrite_data(os.path.join(root, file))
+        os.remove(os.path.join(root, file))
     
 def encrypt_directory(folder,delete,secure,backup):
     files_encrypted = 0
+    threads = []
     for root, dirs, files in os.walk(folder):
         for file in files:
-            if (os.path.splitext(file)[1] != ".aes"):
-                subprocess.run([aescrypt_path, '-e', '-p', password, os.path.join(root, file)])
-                files_encrypted += 1
-                if backup:
-                    copy_file_to(os.path.join(root, file) + ".aes",os.path.join(appdata_directory,file) + ".aes")
-                if delete and os.path.exists(os.path.join(root, file + ".aes")):
-                    if (secure):
-                        overwrite_data(os.path.join(root, file))
-                    os.remove(os.path.join(root, file))
-            progress_bar(math.ceil((files.index(file) / len(files)) * 100))
+            if (os.path.splitext(file)[1] == ".aes"):
+                continue
+            thread = threading.Thread(target=encrypt_file, args=(file, root, backup, delete, secure))
+            thread.start()
+            threads.append(thread)
+            progress_bar(math.ceil((files.index(file) / len(files)) * 100),30,file)
+            files_encrypted += 1
+    for thread in threads:
+        thread.join()
     print(f" \n finished encrypting {folder} encrypted {files_encrypted} files")
-    
+
+def encrypt_file(file,root,backup,delete,secure):
+    subprocess.run([aescrypt_path, '-e', '-p', password, os.path.join(root, file)])
+    if backup:
+        copy_file_to(os.path.join(root, file) + ".aes",os.path.join(appdata_directory,file) + ".aes")
+    if delete and os.path.exists(os.path.join(root, file + ".aes")):
+        if (secure):
+            overwrite_data(os.path.join(root, file))
+        os.remove(os.path.join(root, file))
 def obscure_directory(folder):
     files_obscured = 0
+    threads = []
     for root, dirs, files in os.walk(folder):
         for file in files:
-            name, ext = os.path.splitext(file)
-            newname = ''.join(chr(random.randint(128, 512)) for _ in range(7))
-            if len(name.split('.')) > 1:
-                newname += '.' + name.split('.')[1]
-            newname += ext
-            os.rename(os.path.join(root, file), os.path.join(root, newname))
+            thread = threading.Thread(target=obscure_file, args=(root,file))
+            thread.start()
+            threads.append(thread)
             files_obscured+=1
-            progress_bar(math.ceil((files.index(file) / len(files)) * 100))
+            progress_bar(math.ceil((files.index(file) / len(files)) * 100),30,file)
+    for thread in threads:
+        thread.join()
     print(f" \n finished obscuring {folder} obscured {files_obscured} files")
 
+def obscure_file(root,file):
+    name, ext = os.path.splitext(file)
+    newname = ''.join(chr(random.randint(128, 512)) for _ in range(7))
+    if len(name.split('.')) > 1:
+        newname += '.' + name.split('.')[1]
+    newname += ext
+    os.rename(os.path.join(root, file), os.path.join(root, newname))
 def swap_file_extensions(folder,swap_from,swap_to):
     files_swapped = 0
     for root, dirs, files in os.walk(folder):
@@ -104,9 +139,8 @@ def swap_file_extensions(folder,swap_from,swap_to):
                 continue
             os.rename(os.path.join(root, file), os.path.join(root, newname))
             files_swapped += 1
-            progress_bar(math.ceil((files.index(file) / len(files)) * 100))
+            progress_bar(math.ceil((files.index(file) / len(files)) * 100),30,file)
     print(f" \n finished swapping {folder} and swapped {files_swapped} files")
-    
 dirs = get_all_dirs(os.getcwd())
 if not dirs:
     print("No directories in this folder, please change this program's location. The program will exit in 5 seconds.")
