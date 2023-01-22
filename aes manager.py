@@ -27,7 +27,7 @@ def copy_file_to(source,destination):
                 write_file.write(line)
             write_file.close()
         read_file.close()
-                
+        
 def get_all_dirs(directory):
     """traverse current dir and return all dirs (folders)"""
     return  [file for file in os.listdir(directory) if os.path.isdir(file)]
@@ -38,7 +38,8 @@ def overwrite_data(file):
         with open(file, 'wb') as f:
             f.write(os.urandom(os.path.getsize(file)))
             f.close()
-            
+
+
 def purge_directory(folder, accepted_file_types, secure):
     """traverse a directory and purge all selected files"""
     files_purged = 0
@@ -55,8 +56,8 @@ def purge_directory(folder, accepted_file_types, secure):
             thread.start()
             progress_bar(math.ceil((files.index(file) / len(files)) * 100), 30, file)
             files_purged += 1
-    for thread in threads:
-        thread.join()
+    #for thread in threads:
+    #    thread.join()
     print(f" \n finished purging {folder} purged {files_purged} files")
     
 def purge_file(file,secure,root):
@@ -83,8 +84,8 @@ def decrypt_directory(folder,delete,secure):
             threads.append(thread)
             files_decrypted += 1
             progress_bar(math.ceil((files.index(file) / len(files)) * 100),30,file)
-    for thread in threads:
-        thread.join()
+    #for thread in threads:
+    #    thread.join()
     print(f" \n finished decrypting {folder} decrypted {files_decrypted} files")
 
 def decrypt_file(file, delete, secure,root):
@@ -111,8 +112,8 @@ def encrypt_directory(folder,delete,secure,backup):
             threads.append(thread)
             progress_bar(math.ceil((files.index(file) / len(files)) * 100),30,file)
             files_encrypted += 1
-    for thread in threads:
-        thread.join()
+    #for thread in threads:
+    #    thread.join()
     print(f" \n finished encrypting {folder} encrypted {files_encrypted} files")
 
 def encrypt_file(file,root,backup,delete,secure):
@@ -138,8 +139,8 @@ def obscure_directory(folder):
             threads.append(thread)
             files_obscured+=1
             progress_bar(math.ceil((files.index(file) / len(files)) * 100),30,file)
-    for thread in threads:
-        thread.join()
+    #for thread in threads:
+    #    thread.join()
     print(f" \n finished obscuring {folder} obscured {files_obscured} files")
 
 def obscure_file(root,file):
