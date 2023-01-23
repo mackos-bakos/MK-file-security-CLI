@@ -5,6 +5,14 @@ import random
 import math
 import sys
 import threading
+import tkinter as tk
+from tkinter import filedialog
+root = tk.Tk()
+root.withdraw()
+aes_dir = ""
+while not aes_dir:
+    aes_dir = filedialog.askdirectory()
+
 aescrypt_path = os.path.join(os.getenv('PROGRAMFILES'), 'AESCrypt', 'aescrypt.exe')
 appdata_directory = os.path.join(os.getenv('APPDATA'), 'backups')
 
@@ -19,12 +27,13 @@ def progress_bar(percent=0, width=30, file = None):
     print('\r[', '#' * left, ' ' * right, ']',
         f' {percent:.0f}%   {file}',
         sep='', end='', flush=True)
+    
 def copy_file_to(source,destination):
     """copy the bytemap of a file elsewhere"""
     with open(source, 'rb') as read_file: 
         with open(destination, 'wb') as write_file: 
             for line in read_file: 
-                write_file.write(line)
+                write_file.write(line) # write copied bytes to new path
             write_file.close()
         read_file.close()
         
@@ -36,14 +45,13 @@ def overwrite_data(file):
     """write a file with random bytemaps to prevent data recovery"""
     for i in range(5):
         with open(file, 'wb') as f:
-            f.write(os.urandom(os.path.getsize(file)))
+            f.write(os.urandom(os.path.getsize(file))) # write random byte map
             f.close()
 
 
 def purge_directory(folder, accepted_file_types, secure):
     """traverse a directory and purge all selected files"""
     files_purged = 0
-    threads = []
     for root, dirs, files in os.walk(folder):
         for file in files:
             if (os.path.splitext(file)[1] not in accepted_file_types):
@@ -51,13 +59,10 @@ def purge_directory(folder, accepted_file_types, secure):
             thread = threading.Thread(
                     target=purge_file,
                     args=(file,secure,root)
-                    )
-            threads.append(thread)
+                    ) #start thread routine
             thread.start()
             progress_bar(math.ceil((files.index(file) / len(files)) * 100), 30, file)
             files_purged += 1
-    #for thread in threads:
-    #    thread.join()
     print(f" \n finished purging {folder} purged {files_purged} files")
     
 def purge_file(file,secure,root):
@@ -69,29 +74,23 @@ def purge_file(file,secure,root):
 def decrypt_directory(folder,delete,secure):
     """traverse a directory and decrypt files"""
     files_decrypted = 0
-    threads = []
     for root, dirs, files in os.walk(folder):
         for file in files:
-            if (os.path.splitext(file)[1] != ".aes"):
-                continue
-            if (os.path.isdir(file)):
+            if (os.path.splitext(file)[1] != ".aes"): # cant decrypt non encrypted files
                 continue
             thread = threading.Thread(
                         target=decrypt_file,
                         args=(os.path.join(root, file),delete, secure,root)
-                        )
+                        ) #start thread routine
             thread.start()
-            threads.append(thread)
             files_decrypted += 1
             progress_bar(math.ceil((files.index(file) / len(files)) * 100),30,file)
-    #for thread in threads:
-    #    thread.join()
     print(f" \n finished decrypting {folder} decrypted {files_decrypted} files")
 
 def decrypt_file(file, delete, secure,root):
     """call aes to decrypt files and delete plus overwrite afterwards if selected"""
-    subprocess.run([aescrypt_path, '-d', '-p', password, file])
-    if delete and os.path.exists(os.path.join(root, file[:-4])):
+    subprocess.run([aescrypt_path, '-d', '-p', password, file]) # call AES to decrypt file 
+    if delete and os.path.exists(os.path.join(root, file[:-4])): # ensure decrypted file was created
         if (secure):
             overwrite_data(os.path.join(root, file))
         os.remove(os.path.join(root, file))
@@ -99,55 +98,47 @@ def decrypt_file(file, delete, secure,root):
 def encrypt_directory(folder,delete,secure,backup):
     """encrypt all files in a directory"""
     files_encrypted = 0
-    threads = []
     for root, dirs, files in os.walk(folder):
         for file in files:
-            if (os.path.splitext(file)[1] == ".aes"):
+            if (os.path.splitext(file)[1] == ".aes"): # cant encrypt already encrypted files
                 continue
             thread = threading.Thread(
                     target=encrypt_file,
                     args=(file, root, backup, delete, secure)
-                    )
+                    ) #start thread routine
             thread.start()
-            threads.append(thread)
             progress_bar(math.ceil((files.index(file) / len(files)) * 100),30,file)
             files_encrypted += 1
-    #for thread in threads:
-    #    thread.join()
     print(f" \n finished encrypting {folder} encrypted {files_encrypted} files")
 
 def encrypt_file(file,root,backup,delete,secure):
     """encrypts a file and securely deletes original file if selected, also makes an encrypted backup"""
-    subprocess.run([aescrypt_path, '-e', '-p', password, os.path.join(root, file)])
+    subprocess.run([aescrypt_path, '-e', '-p', password, os.path.join(root, file)]) # call AES to encrypt the file
     if backup:
         copy_file_to(os.path.join(root, file) + ".aes",os.path.join(appdata_directory,file) + ".aes")
-    if delete and os.path.exists(os.path.join(root, file + ".aes")):
+    if delete and os.path.exists(os.path.join(root, file + ".aes")): #ensure file was encrypted before deleting
         if (secure):
             overwrite_data(os.path.join(root, file))
         os.remove(os.path.join(root, file))
 def obscure_directory(folder):
     """randomises file names in a dir"""
     files_obscured = 0
-    threads = []
     for root, dirs, files in os.walk(folder):
         for file in files:
             thread = threading.Thread(
                     target=obscure_file,
                     args=(root,file)
-                    )
+                    ) # start thread routine
             thread.start()
-            threads.append(thread)
             files_obscured+=1
             progress_bar(math.ceil((files.index(file) / len(files)) * 100),30,file)
-    #for thread in threads:
-    #    thread.join()
     print(f" \n finished obscuring {folder} obscured {files_obscured} files")
 
 def obscure_file(root,file):
     """randomises a file name"""
     name, ext = os.path.splitext(file)
-    newname = ''.join(chr(random.randint(128, 512)) for _ in range(7))
-    if len(name.split('.')) > 1:
+    newname = ''.join(chr(random.randint(128, 512)) for _ in range(7)) #add random unicode chars
+    if len(name.split('.')) > 1: # add file extensions before .aes to ensure recreation
         newname += '.' + name.split('.')[1]
     newname += ext
     os.rename(os.path.join(root, file), os.path.join(root, newname))
@@ -159,7 +150,7 @@ def swap_file_extensions(folder,swap_from,swap_to):
             name, ext = os.path.splitext(file)
             if (ext not in [swap_from,".aes"]):
                 continue
-            if (ext == ".aes" and name.split(".")[1] == swap_from[1:]):
+            if (ext == ".aes" and name.split(".")[1] == swap_from[1:]): # only swap non .aes file extension
                 newname = name[:-4] + swap_to + ".aes"
             elif (ext == swap_from):
                 newname = name + swap_to
@@ -169,23 +160,7 @@ def swap_file_extensions(folder,swap_from,swap_to):
             files_swapped += 1
             progress_bar(math.ceil((files.index(file) / len(files)) * 100),30,file)
     print(f" \n finished swapping {folder} and swapped {files_swapped} files")
-dirs = get_all_dirs(os.getcwd())
-if not dirs:
-    print("No directories in this folder, please change this program's location. The program will exit in 5 seconds.")
-    time.sleep(5)
-    sys.exit()
 
-print(f"{len(dirs)} directories discovered in directory {os.getcwd()}")
-
-for i, dr in enumerate(dirs):
-    print(f"{i+1}. {os.path.join(os.getcwd(), dr)}")
-
-while True:
-    dirsptr = int(input("Choose directory: "))
-    if 0 < dirsptr <= len(dirs):
-        break
-
-aes_dir = os.path.join(os.getcwd(), dirs[dirsptr - 1])
 print(" decrypt - decrypts all .aes files in the selected directory")
 print(" purge   - deletes selected file extensions in the directory")
 print(" obscure - randomises all file names  the selected directory")
@@ -257,9 +232,3 @@ print("time elapsed", end-start, "seconds")
 print("-------------------------------------------console will close in 5 seconds--------------------------------------------")
 time.sleep(5)
 
-#def openfileprompt(): # works
-#    dlg = win32ui.CreateFileDialog(1)
-#    dlg.SetOFNInitialDir(os.getcwd())
-#    dlg.DoModal()
-#    directory = dlg.GetPathName()
-#    return directory
