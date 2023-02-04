@@ -5,16 +5,34 @@ import random
 import math
 import sys
 import threading
+import json
 import tkinter as tk
 from tkinter import filedialog
+import win32api,win32process,win32con
+pid = win32api.GetCurrentProcessId()
+handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, True, pid)
+win32process.SetPriorityClass(handle, win32process.HIGH_PRIORITY_CLASS)
+print(f"this program ( {pid} ) priority has been set to high")
 root = tk.Tk()
 root.withdraw()
+
 aes_dir = ""
+
 while not aes_dir:
     aes_dir = filedialog.askdirectory()
 
 aescrypt_path = os.path.join(os.getenv('PROGRAMFILES'), 'AESCrypt', 'aescrypt.exe')
 appdata_directory = os.path.join(os.getenv('APPDATA'), 'backups')
+config_dir = os.getcwd() + "\FastTrack.json"
+default = {'decrypt': {'delete': False},'encrypt': {'delete': True,'backup': True},'purge': {'types': [".png",".jpg",".mp4"]},'swap': {'from': ".jpg",'to': ".png"}} #wont store password for obvious reasons
+if not os.path.exists(config_dir):
+    open(config_dir,"a")
+    json.dump(default,open(config_dir,"w"))
+    print(f"new fast track file made at {config_dir}")
+    
+with open(config_dir, "r") as f:
+    cur_fast_track = json.load(f)
+    f.close()
 
 if not os.path.exists(appdata_directory):
     os.makedirs(appdata_directory)
@@ -101,13 +119,12 @@ def encrypt_directory(folder,delete,secure,backup):
     """encrypt all files in a directory"""
     threads = []
     for root, dirs, files in os.walk(folder):
-        for file in files:
-            thread = threading.Thread(
-                    target=encrypt_file,
-                    args=(files, root, backup, delete, secure)
-                    ) #start thread routine
-            thread.start()
-            threads.append(thread)
+        thread = threading.Thread(
+                target=encrypt_file,
+                args=(files, root, backup, delete, secure)
+                ) #start thread routine
+        thread.start()
+        threads.append(thread)
     for thread in threads:
         progress_bar(math.ceil((threads.index(thread) / len(threads)) * 100),30,f"joining thread {threads.index(thread)} out of {len(threads)} threads")
         thread.join()
@@ -176,59 +193,99 @@ print(" swap    - swaps all file extensions for  selected directory")
 choice = input("enter choice :// ")
 if (choice.lower() == "decrypt"):
     password = input("enter decryption key :// ")
-    _delete = False
-    _secure = False
-    if (input("delete encrypted version? y/n ://").lower() == "y"):
-        _delete = True
-        if (input("make files completely unrecoverable by professional software? (takes longer) y/n ://").lower() == "y"):
+    if (input(f"use FastTrack settings delete: {cur_fast_track['decrypt']['delete']}? y/n ://").lower() == "y"):
+        _delete = cur_fast_track['decrypt']['delete']
+        _secure = True
+        start = time.time()
+        decrypt_directory(aes_dir,_delete,_secure)
+    else:
+        _delete = False
+        _secure = False
+        if (input("delete encrypted version? y/n ://").lower() == "y"):
+            _delete = True
             _secure = True
-    start = time.time()
-    decrypt_directory(aes_dir,_delete,_secure)
-
+        start = time.time()
+        decrypt_directory(aes_dir,_delete,_secure)
+        if (input("save to fast track? y/n :// ").lower() == "y"):
+            cur_fast_track['decrypt']['delete'] = _delete
+            with open(config_dir,"w") as f:
+                json.dump(cur_fast_track,f)
+                f.close()
 elif (choice.lower() == "purge"):
-    filters = []
-    secure = False
-    print("enter file extensions to be purged below and type none in console to stop adding extensions")
-    inp = ""
-    while True:
-        inp = input("add a new extension to purge e.g .png ://")
-        if inp.lower() == "none":
-            break
-        else:
-            filters.append(inp)
-    if input("make files completely unrecoverable by professional software? (takes longer) y/n ://").lower() == "y":
-        secure = True
-    start = time.time()
-    purge_directory(aes_dir,filters,secure)
-
+    if (input(f"use FastTrack settings filters: {cur_fast_track['purge']['types']}? y/n ://").lower() == "y"):
+        _filters = cur_fast_track['purge']['types']
+        _secure = True
+        purge_directory(aes_dir,_filters,_secure)
+        start = time.time()
+    else:
+        _filters = []
+        secure = False
+        print("enter file extensions to be purged below and type none in console to stop adding extensions")
+        inp = ""
+        while True:
+            inp = input("add a new extension to purge e.g .png ://")
+            if inp.lower() == "none":
+                break
+            else:
+                _filters.append(inp)
+        _secure = True
+        start = time.time()
+        purge_directory(aes_dir,_filters,_secure)
+        if (input("save to fast track? y/n :// ").lower() == "y"):
+            cur_fast_track['purge']['types'] = _filters
+            with open(config_dir,"w") as f:
+                json.dump(cur_fast_track,f)
+                f.close()
 elif (choice.lower() == "obscure"):
     start = time.time()
     obscure_directory(aes_dir)
 
 elif (choice.lower() == "encrypt"):
     password = input("enter encryption key ://")
-    _delete = False
-    _secure = False
-    _backup = False
-    if (input("delete unencrypted version? y/n ://").lower() == "y"):
-        _delete = True
-        if (input("make files completely unrecoverable by professional software? (takes longer) y/n ://").lower() == "y"):
+    if (input(f"use FastTrack settings delete: {cur_fast_track['encrypt']['delete']} backup: {cur_fast_track['encrypt']['backup']}? y/n ://").lower() == "y"):
+        _backup = cur_fast_track['encrypt']['backup']
+        _delete = cur_fast_track['encrypt']['delete']
+        _secure = False
+        encrypt_directory(aes_dir,_delete,_secure,_backup)
+        start = time.time()
+    else:
+        _delete = False
+        _secure = False
+        _backup = False
+        if (input("delete unencrypted version? y/n ://").lower() == "y"):
+            _delete = True
             _secure = True
-    if (input("backup encrypted file in appdata? y/n ://").lower() == "y"):
-        _backup = True
-    start = time.time()
-    encrypt_directory(aes_dir,_delete,_secure,_backup)
-    
+        if (input("backup encrypted file in appdata? y/n ://").lower() == "y"):
+            _backup = True
+        start = time.time()
+        encrypt_directory(aes_dir,_delete,_secure,_backup)
+        if (input("save to fast track? y/n :// ").lower() == "y"):
+            cur_fast_track['encrypt']['delete'] = _delete
+            cur_fast_track['encrypt']['backup'] = _backup
+            with open(config_dir,"w") as f:
+                json.dump(cur_fast_track,f)
+                f.close()
 elif (choice.lower() == "swap"):
-    _swap_from = input("swap from e.g .png :// ")
-    _swap_to = input("swap from e.g .jpg :// ")
-    if len(_swap_from) < 4 or len(_swap_to) < 4:
-        print("invalid input the program will exit in 5 seconds")
-        time.sleep(5)
-        sys.exit()
-    start = time.time()
-    swap_file_extensions(aes_dir,_swap_from,_swap_to)
-    
+    if (input(f"use FastTrack settings from: {cur_fast_track['swap']['from']} to: {cur_fast_track['swap']['to']}? y/n ://").lower() == "y"):
+        _swap_from = cur_fast_track['swap']['from']
+        _swap_to = cur_fast_track['swap']['to']
+        start = time.time()
+        swap_file_extensions(aes_dir,_swap_from,_swap_to)
+    else:
+        _swap_from = input("swap from e.g .png :// ")
+        _swap_to = input("swap from e.g .jpg :// ")
+        if len(_swap_from) < 4 or len(_swap_to) < 4:
+            print("invalid input the program will exit in 5 seconds")
+            time.sleep(5)
+            sys.exit()
+        start = time.time()
+        swap_file_extensions(aes_dir,_swap_from,_swap_to)
+        if (input("save to fast track? y/n :// ").lower() == "y"):
+            cur_fast_track['swap']['from'] = _swap_from
+            cur_fast_track['swap']['to'] = _swap_to
+            with open(config_dir,"w") as f:
+                json.dump(cur_fast_track,f)
+                f.close()
 else:
     print("nothing selected. program will exit in 5 seconds")
     time.sleep(5)
