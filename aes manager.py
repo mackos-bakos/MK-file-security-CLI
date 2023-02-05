@@ -8,11 +8,19 @@ import threading
 import json
 import tkinter as tk
 from tkinter import filedialog
-import win32api,win32process,win32con
-pid = win32api.GetCurrentProcessId()
-handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, True, pid)
-win32process.SetPriorityClass(handle, win32process.HIGH_PRIORITY_CLASS)
-print("priority has been set to high.")
+try:
+    import win32api,win32process,win32con
+    pid = win32api.GetCurrentProcessId()
+    handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, True, pid)
+    win32process.SetPriorityClass(handle, win32process.HIGH_PRIORITY_CLASS)
+    print("priority has been set to high.")
+except:
+    print("pywin not installed! please install it although it is not required to run this program.")
+
+aescrypt_path = os.path.join(os.getenv('PROGRAMFILES'), 'AESCrypt', 'aescrypt.exe')
+if not os.path.exists(aescrypt_path):
+    input("aescrypt is not installed! please install it from https://www.aescrypt.com/download/")
+    
 root = tk.Tk()
 root.withdraw()
 
@@ -36,7 +44,6 @@ num_files = count_files(aes_dir)
 num_folders = count_folders(aes_dir)
 
 print(f"\nselected path {aes_dir} containing {num_files} files and {num_folders} folders.")
-aescrypt_path = os.path.join(os.getenv('PROGRAMFILES'), 'AESCrypt', 'aescrypt.exe')
 appdata_directory = os.path.join(os.getenv('APPDATA'), 'backups')
 config_dir = os.getcwd() + "\FastTrack.json"
 default = {'decrypt': {'delete': False,'seperate': True},'encrypt': {'delete': True,'backup': True},'purge': {'types': [".png",".jpg",".mp4"]},'swap': {'from': ".jpg",'to': ".png"}} #wont store password for obvious reasons
