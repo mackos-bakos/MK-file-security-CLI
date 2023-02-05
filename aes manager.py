@@ -7,6 +7,7 @@ import sys
 import threading
 import json
 import tkinter as tk
+import hashlib
 from tkinter import filedialog
 try:
     import win32api,win32process,win32con
@@ -59,6 +60,7 @@ with open(config_dir, "r") as f:
 if not os.path.exists(appdata_directory):
     os.makedirs(appdata_directory)
     print(f"created a directory at {appdata_directory}")
+    
 def progress_bar(percent=0, width=30, file = None):
     """display a updating progress bar with static position in cmd prompt"""
     left = width * percent // 100 
@@ -66,6 +68,11 @@ def progress_bar(percent=0, width=30, file = None):
     print('\r[', '#' * left, ' ' * right, ']',
         f' {percent:.0f}%   {file}',
         sep='', end='', flush=True)
+    
+def hash_md5(to_hash):
+    res = hashlib.md5(to_hash.encode('utf-8'))
+    return res.hexdigest()
+
 def copy_file_to(source,destination):
     """copy the bytemap of a file elsewhere"""
     with open(source, 'rb') as read_file: 
@@ -145,12 +152,13 @@ def decrypt_file(files, delete,seperate, secure,root):
                 if (secure):
                     overwrite_data(os.path.join(root, file[:-4]))
                 os.remove(os.path.join(root, file[:-4]))
-            if delete and os.path.exists(os.path.join(root+"/raw",file[:-4])): # ensure decrypted file was created
+            if delete and (os.path.exists(os.path.join(root+"/raw",file[:-4])) or os.path.exists(os.path.join(root,file[:-4]))): # ensure decrypted file was created
                 if (secure):
-                    overwrite_data(os.path.join(root+"/raw",file[:-4]))
-                os.remove(os.path.join(root+"/raw",file[:-4]))
+                    overwrite_data(os.path.join(root,file))
+                os.remove(os.path.join(root,file))
         except:
             continue
+        
 def encrypt_directory(folder,delete,secure,backup):
     """encrypt all files in a directory"""
     threads = []
@@ -182,6 +190,7 @@ def encrypt_file(files,root,backup,delete,secure):
             if (secure):
                 overwrite_data(os.path.join(root, file))
             os.remove(os.path.join(root, file))
+            
 def obscure_directory(folder):
     """randomises file names in a dir"""
     threads = []
@@ -207,6 +216,7 @@ def obscure_file(root,files):
             newname += '.' + name.split('.')[1]
         newname += ext
         os.rename(os.path.join(root, file), os.path.join(root, newname))
+        
 def swap_file_extensions(folder,swap_from,swap_to):
     """traverses a dir, swapping selected file names"""
     files_swapped = 0
@@ -234,7 +244,10 @@ print(f"encrypt -      encrypt all files")
 print(f"swap    -   swap file extensions")
 choice = input("enter choice :// ")
 if (choice.lower() == "decrypt"):
-    password = input("\nenter decryption key :// ")
+    if (input("\nuse a hashed key? y/n :// ").lower() == "y"):
+        password = hash_md5(input("\nenter key to be hashed :// "))
+    else:
+        password = input("\nenter raw decryption key :// ")
     if (input(f" \nuse FastTrack settings? \ndelete: {cur_fast_track['decrypt']['delete']} \nseperate: {cur_fast_track['decrypt']['seperate']} \ny/n? :// ").lower() == "y"):
         _delete = cur_fast_track['decrypt']['delete']
         _seperate = cur_fast_track['decrypt']['seperate']
@@ -294,7 +307,10 @@ elif (choice.lower() == "obscure"):
     obscure_directory(aes_dir)
 
 elif (choice.lower() == "encrypt"):
-    password = input("\nenter encryption key :// ")
+    if (input("\nuse a hashed key? y/n :// ").lower() == "y"):
+        password = hash_md5(input("\nenter key to be hashed :// "))
+    else:
+        password = input("\nenter raw decryption key :// ")
     if (input(f"\nuse FastTrack settings? \ndelete: {cur_fast_track['encrypt']['delete']} \nbackup: {cur_fast_track['encrypt']['backup']} \ny/n? :// ").lower() == "y"):
         _backup = cur_fast_track['encrypt']['backup']
         _delete = cur_fast_track['encrypt']['delete']
