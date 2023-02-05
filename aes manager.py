@@ -105,7 +105,7 @@ def purge_directory(folder, accepted_file_types, secure):
         thread.start()
         threads.append(thread)
     for thread in threads:
-        progress_bar(math.floor((threads.index(thread) / len(threads)) * 100),30,f"joining thread {threads.index(thread)} out of {len(threads)} threads.")
+        progress_bar(math.ceil(((threads.index(thread) + 1) / len(threads)) * 100),30,f"joining thread {threads.index(thread)+1} out of {len(threads)} threads.")
         thread.join()
     print("\n")
     print(f"finished purging {folder}")
@@ -135,7 +135,7 @@ def decrypt_directory(folder,delete,secure,seperate):
         thread.start()
         threads.append(thread)
     for thread in threads:
-        progress_bar(math.floor((threads.index(thread) / len(threads)) * 100),30,f"joining thread {threads.index(thread)} out of {len(threads)} threads.")
+        progress_bar(math.ceil(((threads.index(thread) + 1) / len(threads)) * 100),30,f"joining thread {threads.index(thread) + 1} out of {len(threads)} threads.")
         thread.join()
     print("\n")
     print(f"finished decrypting {folder}")
@@ -170,7 +170,7 @@ def encrypt_directory(folder,delete,secure,backup):
         thread.start()
         threads.append(thread)
     for thread in threads:
-        progress_bar(math.floor((threads.index(thread) / len(threads)) * 100),30,f"joining thread {threads.index(thread)} out of {len(threads)} threads.")
+        progress_bar(math.ceil(((threads.index(thread) + 1) / len(threads)) * 100),30,f"joining thread {threads.index(thread) + 1} out of {len(threads)} threads.")
         thread.join()
     print("\n")
     print(f"finished encrypting {folder}")
@@ -202,7 +202,7 @@ def obscure_directory(folder):
         thread.start()
         threads.append(thread)
     for thread in threads:
-        progress_bar(math.floor((threads.index(thread) / len(threads)) * 100),30,f"joining thread {threads.index(thread)} out of {len(threads)} threads.")
+        progress_bar(math.ceil(((threads.index(thread) + 1) / len(threads)) * 100),30,f"joining thread {threads.index(thread) + 1} out of {len(threads)} threads.")
         thread.join()
     print("\n")
     print(f"finished obscuring {folder}")
@@ -233,7 +233,7 @@ def swap_file_extensions(folder,swap_from,swap_to):
                 continue
             os.rename(os.path.join(root, file), os.path.join(root, newname))
             files_swapped += 1
-            progress_bar(math.ceil((files.index(file) / len(files)) * 100),30,file)
+            progress_bar(math.ceil(((files.index(file) + 1) / len(files)) * 100),30,file)
     print("\n")
     print(f" \n finished swapping {folder} and swapped {files_swapped} files")
 
