@@ -24,7 +24,7 @@ while not aes_dir:
 aescrypt_path = os.path.join(os.getenv('PROGRAMFILES'), 'AESCrypt', 'aescrypt.exe')
 appdata_directory = os.path.join(os.getenv('APPDATA'), 'backups')
 config_dir = os.getcwd() + "\FastTrack.json"
-default = {'decrypt': {'delete': False},'encrypt': {'delete': True,'backup': True},'purge': {'types': [".png",".jpg",".mp4"]},'swap': {'from': ".jpg",'to': ".png"}} #wont store password for obvious reasons
+default = {'decrypt': {'delete': False,'seperate': True},'encrypt': {'delete': True,'backup': True},'purge': {'types': [".png",".jpg",".mp4"]},'swap': {'from': ".jpg",'to': ".png"}} #wont store password for obvious reasons
 if not os.path.exists(config_dir):
     open(config_dir,"a")
     json.dump(default,open(config_dir,"w"))
@@ -89,13 +89,15 @@ def purge_file(files,secure,root,accepted_file_types):
             overwrite_data(os.path.join(root, file))
         os.remove(os.path.join(root, file))
     
-def decrypt_directory(folder,delete,secure):
+def decrypt_directory(folder,delete,secure,seperate):
     """traverse a directory and decrypt files"""
     threads = []
     for root, dirs, files in os.walk(folder):
+        if (not os.path.exists(root+"/raw") and seperate and root[-3:] != "raw" and len(files) != 0):
+            os.mkdir(root+"/raw")
         thread = threading.Thread(
                     target=decrypt_file,
-                    args=(files,delete, secure,root)
+                    args=(files,delete,seperate, secure,root)
                     ) #start thread routine
         thread.start()
         threads.append(thread)
@@ -104,16 +106,24 @@ def decrypt_directory(folder,delete,secure):
         thread.join()
     print(f" \n finished decrypting {folder}")
 
-def decrypt_file(files, delete, secure,root):
+def decrypt_file(files, delete,seperate, secure,root):
     """call aes to decrypt files and delete plus overwrite afterwards if selected"""
     for file in files:
         if (os.path.splitext(file)[1] != ".aes"): # cant decrypt non encrypted files
             continue
-        subprocess.run([aescrypt_path, '-d', '-p', password, os.path.join(root, file)]) # call AES to decrypt file
-        if delete and os.path.exists(os.path.join(root, file[:-4])): # ensure decrypted file was created
+        try:
+            subprocess.run([aescrypt_path, '-d', '-p', password, os.path.join(root, file)]) # call AES to decrypt file
+        except:
+            continue
+        if (seperate and os.path.exists(os.path.join(root, file[:-4]))):
+            copy_file_to(os.path.join(root, file[:-4]),os.path.join(root+"/raw",file[:-4]))
             if (secure):
-                overwrite_data(os.path.join(root, file))
-            os.remove(os.path.join(root, file))
+                overwrite_data(os.path.join(root, file[:-4]))
+            os.remove(os.path.join(root, file[:-4]))
+        if delete and os.path.exists(os.path.join(root+"/raw",file[:-4])): # ensure decrypted file was created
+            if (secure):
+                overwrite_data(os.path.join(root+"/raw",file[:-4]))
+            os.remove(os.path.join(root+"/raw",file[:-4]))
  
 def encrypt_directory(folder,delete,secure,backup):
     """encrypt all files in a directory"""
@@ -135,7 +145,10 @@ def encrypt_file(files,root,backup,delete,secure):
     for file in files:
         if (os.path.splitext(file)[1] == ".aes"): # cant encrypt already encrypted files
             continue
-        subprocess.run([aescrypt_path, '-e', '-p', password, os.path.join(root, file)]) # call AES to encrypt the file
+        try:
+            subprocess.run([aescrypt_path, '-e', '-p', password, os.path.join(root, file)]) # call AES to encrypt the file
+        except:
+            continue
         if backup:
             copy_file_to(os.path.join(root, file) + ".aes",os.path.join(appdata_directory,file) + ".aes")
         if delete and os.path.exists(os.path.join(root, file + ".aes")): #ensure file was encrypted before deleting
@@ -193,21 +206,26 @@ print(" swap    - swaps all file extensions for  selected directory")
 choice = input("enter choice :// ")
 if (choice.lower() == "decrypt"):
     password = input("enter decryption key :// ")
-    if (input(f"use FastTrack settings delete: {cur_fast_track['decrypt']['delete']}? y/n ://").lower() == "y"):
+    if (input(f"use FastTrack settings delete: {cur_fast_track['decrypt']['delete']} seperate: {cur_fast_track['decrypt']['seperate']}? y/n ://").lower() == "y"):
         _delete = cur_fast_track['decrypt']['delete']
+        _seperate = cur_fast_track['decrypt']['seperate']
         _secure = True
         start = time.time()
-        decrypt_directory(aes_dir,_delete,_secure)
+        decrypt_directory(aes_dir,_delete,_secure,_seperate)
     else:
         _delete = False
         _secure = False
+        _seperate = False
         if (input("delete encrypted version? y/n ://").lower() == "y"):
             _delete = True
             _secure = True
+        if (input("seperate encrypted files in different folders? y/n ://").lower() == "y"):
+            _seperate = True
         start = time.time()
-        decrypt_directory(aes_dir,_delete,_secure)
+        decrypt_directory(aes_dir,_delete,_secure,_seperate)
         if (input("save to fast track? y/n :// ").lower() == "y"):
             cur_fast_track['decrypt']['delete'] = _delete
+            cur_fast_track['decrypt']['seperate'] = _seperate
             with open(config_dir,"w") as f:
                 json.dump(cur_fast_track,f)
                 f.close()
