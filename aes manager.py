@@ -361,15 +361,18 @@ def obscure_file(root,files):
         name, ext = os.path.splitext(file)
 
         #add random unicode chars
-        newname = ''.join(chr(random.randint(128, 512)) for _ in range(7))
+        _newname = ''.join(chr(random.randint(128, 512)) for _ in range(7))
 
         #readd old file extension below .aes
         if len(name.split('.')) > 1:
-            newname += '.' + name.split('.')[1]
+            _newname += '.' + name.split('.')[1]
 
         #readd extension
-        newname += ext
+        _newname += ext
 
+        #add file number
+        newname = f"{files.index(file)}-{_newname}"
+        
         #rename file
         os.rename(os.path.join(root, file), os.path.join(root, newname))
         
