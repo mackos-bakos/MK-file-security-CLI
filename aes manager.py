@@ -73,10 +73,34 @@ def count_folders(directory):
         count += 1
     return count
 
+def count_size(directory):
+    """get file size of folder"""
+    size = 0
+    for root, dirs, files in os.walk(directory):
+        for file in files:
+            size += os.path.getsize(os.path.join(root,file))
+    return size
+
+def size_to_rational(size):
+    """get size in understandable terms to gb"""
+    gb_size = 1000000000
+    mb_size = 1000000
+    kb_size = 1000
+    b_size = 1
+    if (size > gb_size):
+        return str(int(size / gb_size)) + "gb"
+    elif (size > mb_size):
+        return str(int(size / mb_size)) + "mb"
+    elif (size > kb_size):
+        return str(int(size / kb_size)) + "kb"
+    elif (size > b_size):
+        return str(int(size / b_size)) + "b"
+    
 num_files = count_files(aes_dir)
 num_folders = count_folders(aes_dir)
+size = size_to_rational(count_size(aes_dir))
 
-print(f"\nselected path {aes_dir} containing {num_files} files and {num_folders} folders.\n\nplease double check this is the right directory!")
+print(f"\nselected path {aes_dir} containing {num_files} files and {num_folders} folders. (size is {size})\n\nplease double check this is the right directory!")
 
 #grab appdata dir for encrypted backups
 appdata_directory = os.path.join(os.getenv('APPDATA'), 'backups')
@@ -635,10 +659,10 @@ else:
     
 new_num_files = count_files(aes_dir)
 new_num_folders = count_folders(aes_dir)
-
+new_file_size = size_to_rational(count_size(aes_dir))
 end = time.time()
 print(f"\ntime elapsed {end-start} seconds")
-print(f"\nnet file gain: {new_num_files-num_files}\nnet folder gain: {new_num_folders-num_folders}\n")
+print(f"\nnet file gain: {new_num_files-num_files}\nnet folder gain: {new_num_folders-num_folders}\nnew file size: {new_file_size}\n")
 print("-------------------------------------------console will close in 5 seconds--------------------------------------------")
 time.sleep(5)
 
