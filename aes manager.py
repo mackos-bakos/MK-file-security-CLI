@@ -17,6 +17,7 @@ import threading
 import json
 import tkinter as tk
 import hashlib
+import getpass
 from tkinter import filedialog
 
 try:
@@ -446,11 +447,14 @@ if (choice.lower() == "decrypt"):
 
     #hash password
     if (input("\nuse a hashed key? y/n :// ").lower() == "y"):
-        password = hash_md5(input("\nenter key to be hashed :// "))
+        to_hash = getpass.getpass("\nenter decryption key to be hashed (input is hidden):// ")
+        print("password: ",'*' * len(to_hash))
+        password = hash_md5(to_hash)
 
     #use raw password
     else:
-        password = input("\nenter raw decryption key :// ")
+        password = getpass.getpass("\nenter raw decryption key (input is hidden):// ")
+        print("password: ",'*' * len(password))
         
     if (input(f" \nuse FastTrack settings? \ndelete: {cur_fast_track['decrypt']['delete']} \nseperate: {cur_fast_track['decrypt']['seperate']} \ny/n? :// ").lower() == "y"):
 
@@ -565,12 +569,15 @@ elif (choice.lower() == "encrypt"):
 
     #hash key
     if (input("\nuse a hashed key? y/n :// ").lower() == "y"):
-        password = hash_md5(input("\nenter key to be hashed :// "))
+        to_hash = getpass.getpass("\nenter key to be hashed (input is hidden):// ")
+        print("password: ",'*' * len(to_hash))
+        password = hash_md5(to_hash)
+        
 
     #raw key
     else:
-        password = input("\nenter raw decryption key :// ")
-
+        password = getpass.getpass("\nenter raw decryption key (input is hidden):// ")
+        print("password: ",'*' * len(password))
     
     if (input(f"\nuse FastTrack settings? \ndelete: {cur_fast_track['encrypt']['delete']} \nbackup: {cur_fast_track['encrypt']['backup']} \ny/n? :// ").lower() == "y"):
 
