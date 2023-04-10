@@ -17,6 +17,7 @@ import threading
 import json
 import tkinter as tk
 import hashlib
+from tqdm import tqdm
 from tkinter import filedialog
 
 try:
@@ -137,13 +138,6 @@ if not os.path.exists(appdata_directory):
     print(f"created a directory at {appdata_directory}")
 
 
-def progress_bar(percent=0, width=30, file = None):
-    """display a updating progress bar with static position in cmd prompt"""
-    left = width * percent // 100
-    right = width - left
-    print('\r[', '#' * left, ' ' * right, ']',
-        f' {percent:.0f}%   {file}',
-        sep='', end='', flush=True)
 
 def hash_md5(to_hash):
     """return hash to md5 standard"""
@@ -198,9 +192,6 @@ def purge_directory(folder, accepted_file_types, secure):
         threads.append(thread)
         
     for thread in threads:
-        #display progress
-        progress_bar(math.ceil(((threads.index(thread) + 1) / len(threads)) * 100),30,f"joining thread {threads.index(thread)+1} out of {len(threads)} threads.")
-
         #wait for threads to finish before continuing
         thread.join()
         
@@ -209,7 +200,7 @@ def purge_directory(folder, accepted_file_types, secure):
     
 def purge_file(files,secure,root,accepted_file_types):
     """purge a file and overwrite its contents before hand if selected"""
-    for file in files:
+    for file in tqdm(files):
         #if the file isnt in the selected file types
         if (os.path.splitext(file)[1] not in accepted_file_types):
             continue
@@ -240,7 +231,8 @@ def decrypt_directory(folder,delete,secure,seperate):
 
         files_per_batch = len(files) // 100
         last_batch = len(files) % 100
-        
+        if files_per_batch == 0:
+            continue
         for i in range(0,len(files)-1,files_per_batch):
             #define thread routine
             thread = threading.Thread(
@@ -253,22 +245,7 @@ def decrypt_directory(folder,delete,secure,seperate):
             #add to thread register
             threads.append(thread)
 
-        #define thread routine
-        thread = threading.Thread(
-                target=decrypt_batch,
-                args=(files[-last_batch:], delete, seperate, secure, root)
-                )
-
-        #start thread routine
-        thread.start()
-
-        #add to thread register
-        threads.append(thread)
-            
     for thread in threads:
-        #display progress
-        progress_bar(math.ceil(((threads.index(thread) + 1) / len(threads)) * 100),30,f"joining thread {threads.index(thread) + 1} out of {len(threads)} threads.")
-
         #wait for threads to finish before continuing
         thread.join()
         
@@ -277,7 +254,7 @@ def decrypt_directory(folder,delete,secure,seperate):
 
 def decrypt_batch(files, delete,seperate, secure,root):
     """call aes to decrypt files and delete plus overwrite afterwards if selected"""
-    for file in files:
+    for file in tqdm(files):
         try:
             #if the file isnt encrypted, skip it
             if (os.path.splitext(file)[1] != ".aes"):
@@ -319,6 +296,8 @@ def encrypt_directory(folder,delete,secure,backup):
     for root, dirs, files in os.walk(folder):
         files_per_batch = len(files) // 100
         last_batch = len(files) % 100
+        if files_per_batch == 0:
+            continue
         for i in range(0,len(files)-1,files_per_batch):
             #define thread routine
             thread = threading.Thread(
@@ -331,23 +310,7 @@ def encrypt_directory(folder,delete,secure,backup):
             #add to thread register
             threads.append(thread)
 
-        
-        #define thread routine
-        thread = threading.Thread(
-                target=encrypt_batch,
-                args=(files[-last_batch:], root, backup, delete, secure)
-                )
-
-        #start thread routine
-        thread.start()
-
-        #add to thread register
-        threads.append(thread)
-            
     for thread in threads:
-        #display progress
-        progress_bar(math.ceil(((threads.index(thread) + 1) / len(threads)) * 100),30,f"joining thread {threads.index(thread) + 1} out of {len(threads)} threads.")
-
         #wait for thread to complete
         thread.join()
         
@@ -356,7 +319,7 @@ def encrypt_directory(folder,delete,secure,backup):
 
 def encrypt_batch(files,root,backup,delete,secure):
     """encrypts a file and securely deletes original file if selected, also makes an encrypted backup"""
-    for file in files:
+    for file in tqdm(files):
         #skip files already encrypted
         if (os.path.splitext(file)[1] == ".aes"):
             continue
@@ -401,9 +364,6 @@ def obscure_directory(folder):
         threads.append(thread)
         
     for thread in threads:
-        #display progress
-        progress_bar(math.ceil(((threads.index(thread) + 1) / len(threads)) * 100),30,f"joining thread {threads.index(thread) + 1} out of {len(threads)} threads.")
-
         #wait for threads to complete
         thread.join()
 
@@ -412,7 +372,7 @@ def obscure_directory(folder):
 
 def obscure_file(root,files):
     """randomises a file name"""
-    for file in files:
+    for file in tqdm(files):
         #split name and file extension
         name, ext = os.path.splitext(file)
 
@@ -436,7 +396,7 @@ def swap_file_extensions(folder,swap_from,swap_to):
     """traverses a dir, swapping selected file names"""
     files_swapped = 0
     for root, dirs, files in os.walk(folder):
-        for file in files:
+        for file in tqdm(files):
             #split name and extension
             name, ext = os.path.splitext(file)
 
@@ -461,8 +421,6 @@ def swap_file_extensions(folder,swap_from,swap_to):
             
             files_swapped += 1
 
-            #show progress
-            progress_bar(math.ceil(((files.index(file) + 1) / len(files)) * 100),30,file)
             
     print("\n")
     print(f" \n finished swapping {folder} and swapped {files_swapped} files")
@@ -478,12 +436,12 @@ if (choice.lower() == "decrypt"):
 
     #hash password
     if (input("\nuse a hashed key? y/n :// ").lower() == "y"):
-        to_hash = input("\nenter decryption key to be hashed (input is hidden):// ")
+        to_hash = input("\nenter decryption key to be hashed :// ")
         password = hash_md5(to_hash)
 
     #use raw password
     else:
-        password = input("\nenter raw decryption key (input is hidden):// ")
+        password = input("\nenter raw decryption key :// ")
         
     if (input(f" \nuse FastTrack settings? \ndelete: {cur_fast_track['decrypt']['delete']} \nseperate: {cur_fast_track['decrypt']['seperate']} \ny/n? :// ").lower() == "y"):
 
@@ -498,7 +456,11 @@ if (choice.lower() == "decrypt"):
         print("\n")
 
         #perform function
-        decrypt_directory(aes_dir,_delete,_secure,_seperate)
+        try:
+            decrypt_directory(aes_dir,_delete,_secure,_seperate)
+        except Exception as e:
+            print(e)
+            input()
         
     else:
         
@@ -521,7 +483,11 @@ if (choice.lower() == "decrypt"):
         print("\n")
 
         #perform function
-        decrypt_directory(aes_dir,_delete,_secure,_seperate)
+        try:
+            decrypt_directory(aes_dir,_delete,_secure,_seperate)
+        except Exception as e:
+            print(e)
+            input()
         end = time.time()
         if (input("\nsave to fast track? y/n :// ").lower() == "y"):
 
@@ -548,7 +514,11 @@ elif (choice.lower() == "purge"):
         start = time.time()
 
         #perform function
-        purge_directory(aes_dir,_filters,_secure)
+        try:
+            purge_directory(aes_dir,_filters,_secure)
+        except Exception as e:
+            print(e)
+            input()
         
     else:
         
@@ -576,8 +546,11 @@ elif (choice.lower() == "purge"):
         print("\n")
 
         #perfrom function
-        purge_directory(aes_dir,_filters,_secure)
-
+        try:
+            purge_directory(aes_dir,_filters,_secure)
+        except Exception as e:
+            print(e)
+            input()
         #dump fasttrack settings
         end = time.time()
         if (input("\nsave to fast track? y/n :// ").lower() == "y"):
@@ -593,19 +566,22 @@ elif (choice.lower() == "obscure"):
     print("\n")
 
     #perform function
-    obscure_directory(aes_dir)
-
+    try:
+        obscure_directory(aes_dir)
+    except Exception as e:
+        print(e)
+        input()
 elif (choice.lower() == "encrypt"):
 
     #hash key
     if (input("\nuse a hashed key? y/n :// ").lower() == "y"):
-        to_hash = input("\nenter key to be hashed (input is hidden):// ")
+        to_hash = input("\nenter key to be hashed :// ")
         password = hash_md5(to_hash)
         
 
     #raw key
     else:
-        password = input("\nenter raw decryption key (input is hidden):// ")
+        password = input("\nenter raw decryption key :// ")
     
     if (input(f"\nuse FastTrack settings? \ndelete: {cur_fast_track['encrypt']['delete']} \nbackup: {cur_fast_track['encrypt']['backup']} \ny/n? :// ").lower() == "y"):
 
@@ -615,7 +591,11 @@ elif (choice.lower() == "encrypt"):
         _secure = False
 
         #perform function
-        encrypt_directory(aes_dir,_delete,_secure,_backup)
+        try:
+            encrypt_directory(aes_dir,_delete,_secure,_backup)
+        except Exception as e:
+            print(e)
+            input()
 
         #sample time
         start = time.time()
@@ -639,8 +619,11 @@ elif (choice.lower() == "encrypt"):
         print("\n")
 
         #perform function
-        encrypt_directory(aes_dir,_delete,_secure,_backup)
-
+        try:
+            encrypt_directory(aes_dir,_delete,_secure,_backup)
+        except Exception as e:
+            print(e)
+            input()
         #save settings to fastrack
         end = time.time()
         if (input("\nsave to fast track? y/n :// ").lower() == "y"):
@@ -661,8 +644,11 @@ elif (choice.lower() == "swap"):
         start = time.time()
 
         #perform function
-        swap_file_extensions(aes_dir,_swap_from,_swap_to)
-        
+        try:
+            swap_file_extensions(aes_dir,_swap_from,_swap_to)
+        except Exception as e:
+            print(e)
+            input()
     else:
         
         _swap_from = input("\nswap from e.g .png :// ")
@@ -678,8 +664,11 @@ elif (choice.lower() == "swap"):
         start = time.time()
 
         #perform function
-        swap_file_extensions(aes_dir,_swap_from,_swap_to)
-
+        try:
+            swap_file_extensions(aes_dir,_swap_from,_swap_to)
+        except Exception as e:
+            print(e)
+            input()
         #save fastrack settings
         end = time.time()
         if (input("\nsave to fast track? y/n :// ").lower() == "y"):
