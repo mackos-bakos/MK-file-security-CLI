@@ -230,14 +230,13 @@ def decrypt_directory(folder,delete,secure,seperate):
             os.mkdir(root+"/raw")
 
         files_per_batch = len(files) // 100
-        last_batch = len(files) % 100
         if files_per_batch == 0:
             continue
-        for i in range(0,len(files)-1,files_per_batch):
+        for i in range(0,len(files),files_per_batch):
             #define thread routine
             thread = threading.Thread(
                     target=decrypt_batch,
-                    args=(files[i:i+(files_per_batch - 1)], delete, seperate, secure, root)
+                    args=(files[i:i+(files_per_batch)], delete, seperate, secure, root)
                     )
             #start thread routine
             thread.start()
@@ -295,14 +294,13 @@ def encrypt_directory(folder,delete,secure,backup):
     
     for root, dirs, files in os.walk(folder):
         files_per_batch = len(files) // 100
-        last_batch = len(files) % 100
         if files_per_batch == 0:
             continue
-        for i in range(0,len(files)-1,files_per_batch):
+        for i in range(0,len(files),files_per_batch):
             #define thread routine
             thread = threading.Thread(
                     target=encrypt_batch,
-                    args=(files[i:i+(files_per_batch - 1)], root, backup, delete, secure)
+                    args=(files[i:i+(files_per_batch)], root, backup, delete, secure)
                     )
             #start thread routine
             thread.start()
