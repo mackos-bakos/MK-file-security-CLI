@@ -228,7 +228,8 @@ def decrypt_directory(folder,delete,secure,seperate):
         if (not os.path.exists(root+"/raw") and seperate and root[-3:] != "raw" and len(files) != 0):
             #make new raw directory to store encrypted files
             os.mkdir(root+"/raw")
-
+        if (len(files) < 100):
+            files_per_batch = len(files)
         files_per_batch = len(files) // 100
         if files_per_batch == 0:
             continue
@@ -294,6 +295,8 @@ def encrypt_directory(folder,delete,secure,backup):
     
     for root, dirs, files in os.walk(folder):
         files_per_batch = len(files) // 100
+        if (len(files) < 100):
+            files_per_batch = len(files)
         if files_per_batch == 0:
             continue
         for i in range(0,len(files),files_per_batch):
@@ -329,7 +332,11 @@ def encrypt_batch(files,root,backup,delete,secure):
             #if fails, skip
             print("failed to create {file}.aes")
             continue
-        
+        if 'raw' in root: #assumes only one level down
+            copy_file_to(os.path.join(root, file) + ".aes",os.path.join(root[:-4],file) + ".aes")
+            overwrite_data(os.path.join(root, file) + ".aes")
+            os.remove(os.path.join(root, file) + ".aes")
+            
         if backup:
             #copy file to appdata
             copy_file_to(os.path.join(root, file) + ".aes",os.path.join(appdata_directory,file) + ".aes")
