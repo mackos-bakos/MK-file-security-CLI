@@ -19,47 +19,7 @@ import tkinter as tk
 import hashlib
 from tqdm import tqdm
 from tkinter import filedialog
-
-try:
-    import win32api,win32process,win32con
-    
-    #grab process id
-    pid = win32api.GetCurrentProcessId()
-
-    #grab handle to process
-    handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, True, pid)
-
-    #set priority to high
-    win32process.SetPriorityClass(handle, win32process.HIGH_PRIORITY_CLASS)
-    
-    print("priority has been set to high.")
-    
-except:
-    print("pywin not installed! please install it although it is not required to run this program.")
-
-
-#grab path to aescrypt.exe
-aescrypt_path = os.path.join(os.getenv('PROGRAMFILES'), 'AESCrypt', 'aescrypt.exe')
-
-#check for aescrypt installation 
-if not os.path.exists(aescrypt_path):
-    input("aescrypt is not installed! please install it from https://www.aescrypt.com/download/")
-    
-    #exit program
-    sys.exit()
-
-
-#init tkinter but dont draw ui
-root = tk.Tk()
-root.withdraw()
-
-end = None
-aes_dir = ""
-
-#repeatably ask for dir to manipulate
-while not aes_dir:
-    aes_dir = filedialog.askdirectory()
-
+import win32api,win32process,win32con
 
 def count_files(directory):
     """count files in a directory"""
@@ -98,46 +58,6 @@ def size_to_rational(size):
     elif (size > b_size):
         return str(int(size / b_size)) + "b"
     
-num_files = count_files(aes_dir)
-num_folders = count_folders(aes_dir)
-size = size_to_rational(count_size(aes_dir))
-
-print(f"\nselected path {aes_dir} containing {num_files} files and {num_folders} folders. (size is {size})\n\nplease double check this is the right directory!")
-
-#grab appdata dir for encrypted backups
-appdata_directory = os.path.join(os.getenv('APPDATA'), 'backups')
-
-#grab config file directory from cwd
-config_dir = os.getcwd() + "\FastTrack.json"
-
-#define default config
-default = {'decrypt': {'delete': False,'seperate': True},'encrypt': {'delete': True,'backup': True},'purge': {'types': [".png",".jpg",".mp4"]},'swap': {'from': ".jpg",'to': ".png"}}
-
-#if config file doesnt exist
-if not os.path.exists(config_dir):
-    #create new config file
-    open(config_dir,"a")
-
-    #dump default config json onto new file
-    json.dump(default,open(config_dir,"w"))
-    
-    print(f"new fast track file made at {config_dir}")
-    
-with open(config_dir, "r") as f:
-    #read config file
-    cur_fast_track = json.load(f)
-
-    #close handle to file
-    f.close()
-
-#if theres no dir in appdata called backups
-if not os.path.exists(appdata_directory):
-    #make new one
-    os.makedirs(appdata_directory)
-    
-    print(f"created a directory at {appdata_directory}")
-
-
 
 def hash_md5(to_hash):
     """return hash to md5 standard"""
@@ -218,7 +138,7 @@ def purge_file(files,secure,root,accepted_file_types):
             #if it fails then skip it
             continue
     
-def decrypt_directory(folder,delete,secure,seperate):
+def decrypt_directory(folder,delete,secure,seperate,key):
     """traverse a directory and decrypt files"""
     
     threads = []
@@ -228,22 +148,18 @@ def decrypt_directory(folder,delete,secure,seperate):
         if (not os.path.exists(root+"/raw") and seperate and root[-3:] != "raw" and len(files) != 0):
             #make new raw directory to store encrypted files
             os.mkdir(root+"/raw")
-        if (len(files) < 100):
-            files_per_batch = len(files)
-        files_per_batch = len(files) // 100
-        if files_per_batch == 0:
-            continue
-        for i in range(0,len(files),files_per_batch):
-            #define thread routine
-            thread = threading.Thread(
-                    target=decrypt_batch,
-                    args=(files[i:i+(files_per_batch)], delete, seperate, secure, root)
-                    )
-            #start thread routine
-            thread.start()
+        if not seperate and os.path.exists(os.path.join(root+"/raw")):
+            os.rmdir(os.path.join(root+"/raw"))
+        #define thread routine
+        thread = threading.Thread(
+                target=decrypt_batch,
+                args=(files, delete, seperate, secure, root, key)
+                )
+        #start thread routine
+        thread.start()
 
-            #add to thread register
-            threads.append(thread)
+        #add to thread register
+        threads.append(thread)
 
     for thread in threads:
         #wait for threads to finish before continuing
@@ -252,7 +168,7 @@ def decrypt_directory(folder,delete,secure,seperate):
     print("\n")
     print(f"finished decrypting {folder}")
 
-def decrypt_batch(files, delete,seperate, secure,root):
+def decrypt_batch(files, delete,seperate, secure, root, key):
     """call aes to decrypt files and delete plus overwrite afterwards if selected"""
     for file in tqdm(files):
         try:
@@ -261,7 +177,7 @@ def decrypt_batch(files, delete,seperate, secure,root):
                 continue
 
             #start decryption process by calling aescrypt
-            subprocess.run([aescrypt_path, '-d', '-p', password, os.path.join(root, file)])
+            subprocess.run([aescrypt_path, '-d', '-p', key, os.path.join(root, file)])
 
             #if seperate option is selected and the decrypted file was created
             if (seperate and os.path.exists(os.path.join(root, file[:-4]))):
@@ -288,28 +204,22 @@ def decrypt_batch(files, delete,seperate, secure,root):
             #if decryption fails, skip
             continue
         
-def encrypt_directory(folder,delete,secure,backup):
+def encrypt_directory(folder,delete,secure,backup,key):
     """encrypt all files in a directory"""
     
     threads = []
     
     for root, dirs, files in os.walk(folder):
-        files_per_batch = len(files) // 100
-        if (len(files) < 100):
-            files_per_batch = len(files)
-        if files_per_batch == 0:
-            continue
-        for i in range(0,len(files),files_per_batch):
-            #define thread routine
-            thread = threading.Thread(
-                    target=encrypt_batch,
-                    args=(files[i:i+(files_per_batch)], root, backup, delete, secure)
-                    )
-            #start thread routine
-            thread.start()
+        #define thread routine
+        thread = threading.Thread(
+                target=encrypt_batch,
+                args=(files, root, backup, delete, secure, key)
+                )
+        #start thread routine
+        thread.start()
 
-            #add to thread register
-            threads.append(thread)
+        #add to thread register
+        threads.append(thread)
 
     for thread in threads:
         #wait for thread to complete
@@ -318,7 +228,7 @@ def encrypt_directory(folder,delete,secure,backup):
     print("\n")
     print(f"finished encrypting {folder}")
 
-def encrypt_batch(files,root,backup,delete,secure):
+def encrypt_batch(files,root,backup,delete,secure,key):
     """encrypts a file and securely deletes original file if selected, also makes an encrypted backup"""
     for file in tqdm(files):
         #skip files already encrypted
@@ -327,7 +237,7 @@ def encrypt_batch(files,root,backup,delete,secure):
         
         try:
             #call aes to encrypt the file
-            subprocess.run([aescrypt_path, '-e', '-p', password, os.path.join(root, file)])
+            subprocess.run([aescrypt_path, '-e', '-p', key, os.path.join(root, file)])
         except:
             #if fails, skip
             print("failed to create {file}.aes")
@@ -356,6 +266,7 @@ def obscure_directory(folder):
     threads = []
     
     for root, dirs, files in os.walk(folder):
+        files = sorted(files) #make sure preserve location works properly
         #define thread routine
         thread = threading.Thread(
                 target=obscure_file,
@@ -429,195 +340,238 @@ def swap_file_extensions(folder,swap_from,swap_to):
             
     print("\n")
     print(f" \n finished swapping {folder} and swapped {files_swapped} files")
+if __name__ == "__main__":
+    #grab process id
+    pid = win32api.GetCurrentProcessId()
+
+    #grab handle to process
+    handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, True, pid)
+
+    #set priority to high
+    win32process.SetPriorityClass(handle, win32process.HIGH_PRIORITY_CLASS)
+        
+    print("priority has been set to high.")
+        
+
+
+    #grab path to aescrypt.exe
+    aescrypt_path = os.path.join(os.getenv('PROGRAMFILES'), 'AESCrypt', 'aescrypt.exe')
+
+    #check for aescrypt installation 
+    if not os.path.exists(aescrypt_path):
+        input("aescrypt is not installed! please install it from https://www.aescrypt.com/download/")
+        
+        #exit program
+        sys.exit()
+
+
+    #init tkinter but dont draw ui
+    root = tk.Tk()
+    root.withdraw()
+
+    end = None
+    aes_dir = ""
+
+    #repeatably ask for dir to manipulate
+    while not aes_dir:
+        aes_dir = filedialog.askdirectory()
+
+    num_files = count_files(aes_dir)
+    num_folders = count_folders(aes_dir)
+    size = size_to_rational(count_size(aes_dir))
+
+    print(f"\nselected path {aes_dir} containing {num_files} files and {num_folders} folders. (size is {size})\n\nplease double check this is the right directory!")
+
+    #grab appdata dir for encrypted backups
+    appdata_directory = os.path.join(os.getenv('APPDATA'), 'backups')
+
+    #grab config file directory from cwd
+    config_dir = os.getcwd() + "\FastTrack.json"
+
+    #define default config
+    default = {'decrypt': {'delete': False,'seperate': True},'encrypt': {'delete': True,'backup': True},'purge': {'types': [".png",".jpg",".mp4"]},'swap': {'from': ".jpg",'to': ".png"}}
+
+    #if config file doesnt exist
+    if not os.path.exists(config_dir):
+        #create new config file
+        open(config_dir,"a")
+
+        #dump default config json onto new file
+        json.dump(default,open(config_dir,"w"))
+        
+        print(f"new fast track file made at {config_dir}")
+        
+    with open(config_dir, "r") as f:
+        #read config file
+        cur_fast_track = json.load(f)
+
+        #close handle to file
+        f.close()
+
+    #if theres no dir in appdata called backups
+    if not os.path.exists(appdata_directory):
+        #make new one
+        os.makedirs(appdata_directory)
+        
+        print(f"created a directory at {appdata_directory}")
+
+    print("\ndecrypt -      decrypt all files")
+    print("purge   -        purge all files")
+    print("obscure - obscure all file names")
+    print("encrypt -      encrypt all files")
+    print("swap    -   swap file extensions")
+    print("flip -  flip between enc/decrypt (start with unencrypted)")
     
-print(f"\ndecrypt -      decrypt all files")
-print(f"purge   -        purge all files")
-print(f"obscure - obscure all file names")
-print(f"encrypt -      encrypt all files")
-print(f"swap    -   swap file extensions")
+    choice = input("enter choice :// ")
+    if (choice.lower() == "decrypt"):
 
-choice = input("enter choice :// ")
-if (choice.lower() == "decrypt"):
+        #hash password
+        if (input("\nuse a hashed key? y/n :// ").lower() == "y"):
+            to_hash = input("\nenter decryption key to be hashed :// ")
+            password = hash_md5(to_hash)
 
-    #hash password
-    if (input("\nuse a hashed key? y/n :// ").lower() == "y"):
-        to_hash = input("\nenter decryption key to be hashed :// ")
-        password = hash_md5(to_hash)
+        #use raw password
+        else:
+            password = input("\nenter raw decryption key :// ")
+            
+        if (input(f" \nuse FastTrack settings? \ndelete: {cur_fast_track['decrypt']['delete']} \nseperate: {cur_fast_track['decrypt']['seperate']} \ny/n? :// ").lower() == "y"):
 
-    #use raw password
-    else:
-        password = input("\nenter raw decryption key :// ")
-        
-    if (input(f" \nuse FastTrack settings? \ndelete: {cur_fast_track['decrypt']['delete']} \nseperate: {cur_fast_track['decrypt']['seperate']} \ny/n? :// ").lower() == "y"):
-
-        #load fastrack settings
-        _delete = cur_fast_track['decrypt']['delete']
-        _seperate = cur_fast_track['decrypt']['seperate']
-        _secure = True
-
-        #sample time
-        start = time.time()
-        
-        print("\n")
-
-        #perform function
-        try:
-            decrypt_directory(aes_dir,_delete,_secure,_seperate)
-        except Exception as e:
-            print(e)
-            input()
-        
-    else:
-        
-        _delete = False
-        _secure = False
-        _seperate = False
-
-        #ask user if they want to delete the encrypted file
-        if (input("\ndelete encrypted version? y/n :// ").lower() == "y"):
-            _delete = True
+            #load fastrack settings
+            _delete = cur_fast_track['decrypt']['delete']
+            _seperate = cur_fast_track['decrypt']['seperate']
             _secure = True
 
-        #ask users if encrypted files should be seperate from raw files
-        if (input("seperate encrypted files in different folders? y/n :// ").lower() == "y"):
-            _seperate = True
+            #sample time
+            start = time.time()
+            
+            print("\n")
 
-        #sample time    
-        start = time.time()
-        
-        print("\n")
+            #perform function
+            try:
+                decrypt_directory(aes_dir,_delete,_secure,_seperate,password)
+            except Exception as e:
+                print(e)
+                input()
+            
+        else:
+            
+            _delete = False
+            _secure = False
+            _seperate = False
 
-        #perform function
-        try:
-            decrypt_directory(aes_dir,_delete,_secure,_seperate)
-        except Exception as e:
-            print(e)
-            input()
-        end = time.time()
-        if (input("\nsave to fast track? y/n :// ").lower() == "y"):
+            #ask user if they want to delete the encrypted file
+            if (input("\ndelete encrypted version? y/n :// ").lower() == "y"):
+                _delete = True
+                _secure = True
 
-            #define json attributes
-            cur_fast_track['decrypt']['delete'] = _delete
-            cur_fast_track['decrypt']['seperate'] = _seperate
+            #ask users if encrypted files should be seperate from raw files
+            if (input("seperate encrypted files in different folders? y/n :// ").lower() == "y"):
+                _seperate = True
 
-            #dump json to file
-            with open(config_dir,"w") as f:
-                json.dump(cur_fast_track,f)
+            #sample time    
+            start = time.time()
+            
+            print("\n")
+
+            #perform function
+            try:
+                decrypt_directory(aes_dir,_delete,_secure,_seperate,password)
+            except Exception as e:
+                print(e)
+                input()
+            end = time.time()
+            if (input("\nsave to fast track? y/n :// ").lower() == "y"):
+
+                #define json attributes
+                cur_fast_track['decrypt']['delete'] = _delete
+                cur_fast_track['decrypt']['seperate'] = _seperate
+
+                #dump json to file
+                with open(config_dir,"w") as f:
+                    json.dump(cur_fast_track,f)
+                    f.close()
+    elif (choice.lower() == "flip"):
+        #hash password
+        if (input("\nuse a hashed key? y/n :// ").lower() == "y"):
+            to_hash = input("\nenter key to be hashed :// ")
+            password = hash_md5(to_hash)
+
+        #use raw password
+        else:
+            password = input("\nenter raw decryption key :// ")
+            
+        if not os.path.exists(aes_dir+"/flip.txt") and not os.path.exists(aes_dir+"/flip.txt.aes"):
+            with open(aes_dir+"/flip.txt","a") as f:
+                f.write("i couldnt think of a better idea so here it is\n")
                 f.close()
-                
-elif (choice.lower() == "purge"):
-    
-    if (input(f"\nuse FastTrack settings? \nfilters: {cur_fast_track['purge']['types']} \ny/n? :// ").lower() == "y"):
-
-        #load fast track settings
-        _filters = cur_fast_track['purge']['types']
-        _secure = True
-        
-        print("\n")
-
-        #sample time
-        start = time.time()
-
-        #perform function
-        try:
-            purge_directory(aes_dir,_filters,_secure)
-        except Exception as e:
-            print(e)
-            input()
-        
-    else:
-        
-        _filters = []
-        secure = False
-        
-        print("\nenter file extensions to be purged below and type none in console to stop adding extensions")
-        
-        
-        #get filters from user
-        inp = ""
-        while True:
-            inp = input("add a new extension to purge. :// ")
-            if inp.lower() == "none":
-                print("\n")
-                break
-            else:
-                _filters.append(inp)
-
-        _secure = True
-
-        #sample time
         start = time.time()
         
-        print("\n")
+        if os.path.exists(aes_dir+"/flip.txt"):
+            encrypt_directory(aes_dir, True, True, False, password)
+        else:
+            decrypt_directory(aes_dir, True, True, False, password)
 
-        #perfrom function
-        try:
-            purge_directory(aes_dir,_filters,_secure)
-        except Exception as e:
-            print(e)
-            input()
-        #dump fasttrack settings
         end = time.time()
-        if (input("\nsave to fast track? y/n :// ").lower() == "y"):
-            cur_fast_track['purge']['types'] = _filters
-            with open(config_dir,"w") as f:
-                json.dump(cur_fast_track,f)
-                f.close()
-                
-elif (choice.lower() == "obscure"):
-    #sample time
-    start = time.time()
-    
-    print("\n")
-
-    #perform function
-    try:
-        obscure_directory(aes_dir)
-    except Exception as e:
-        print(e)
-        input()
-elif (choice.lower() == "encrypt"):
-
-    #hash key
-    if (input("\nuse a hashed key? y/n :// ").lower() == "y"):
-        to_hash = input("\nenter key to be hashed :// ")
-        password = hash_md5(to_hash)
+    elif (choice.lower() == "purge"):
         
+        if (input(f"\nuse FastTrack settings? \nfilters: {cur_fast_track['purge']['types']} \ny/n? :// ").lower() == "y"):
 
-    #raw key
-    else:
-        password = input("\nenter raw decryption key :// ")
-    
-    if (input(f"\nuse FastTrack settings? \ndelete: {cur_fast_track['encrypt']['delete']} \nbackup: {cur_fast_track['encrypt']['backup']} \ny/n? :// ").lower() == "y"):
-
-        #load fast track settings
-        _backup = cur_fast_track['encrypt']['backup']
-        _delete = cur_fast_track['encrypt']['delete']
-        _secure = False
-
-        #perform function
-        try:
-            encrypt_directory(aes_dir,_delete,_secure,_backup)
-        except Exception as e:
-            print(e)
-            input()
-
-        #sample time
-        start = time.time()
-        
-    else:
-        
-        _delete = False
-        _secure = False
-        _backup = False
-        
-        if (input("\ndelete unencrypted version? y/n :// ").lower() == "y"):
-            _delete = True
+            #load fast track settings
+            _filters = cur_fast_track['purge']['types']
             _secure = True
             
-        if (input("backup encrypted file in appdata? y/n :// ").lower() == "y"):
-            _backup = True
+            print("\n")
 
+            #sample time
+            start = time.time()
+
+            #perform function
+            try:
+                purge_directory(aes_dir,_filters,_secure)
+            except Exception as e:
+                print(e)
+                input()
+            
+        else:
+            
+            _filters = []
+            secure = False
+            
+            print("\nenter file extensions to be purged below and type none in console to stop adding extensions")
+            
+            
+            #get filters from user
+            inp = ""
+            while True:
+                inp = input("add a new extension to purge. :// ")
+                if inp.lower() == "none":
+                    print("\n")
+                    break
+                else:
+                    _filters.append(inp)
+
+            _secure = True
+
+            #sample time
+            start = time.time()
+            
+            print("\n")
+
+            #perfrom function
+            try:
+                purge_directory(aes_dir,_filters,_secure)
+            except Exception as e:
+                print(e)
+                input()
+            #dump fasttrack settings
+            end = time.time()
+            if (input("\nsave to fast track? y/n :// ").lower() == "y"):
+                cur_fast_track['purge']['types'] = _filters
+                with open(config_dir,"w") as f:
+                    json.dump(cur_fast_track,f)
+                    f.close()
+                    
+    elif (choice.lower() == "obscure"):
         #sample time
         start = time.time()
         
@@ -625,75 +579,131 @@ elif (choice.lower() == "encrypt"):
 
         #perform function
         try:
-            encrypt_directory(aes_dir,_delete,_secure,_backup)
+            obscure_directory(aes_dir)
         except Exception as e:
             print(e)
             input()
-        #save settings to fastrack
-        end = time.time()
-        if (input("\nsave to fast track? y/n :// ").lower() == "y"):
-            cur_fast_track['encrypt']['delete'] = _delete
-            cur_fast_track['encrypt']['backup'] = _backup
-            with open(config_dir,"w") as f:
-                json.dump(cur_fast_track,f)
-                f.close()
-                
-elif (choice.lower() == "swap"):
-    
-    if (input(f"\nuse FastTrack settings? \nfrom: {cur_fast_track['swap']['from']} \nto: {cur_fast_track['swap']['to']} \ny/n? :// ").lower() == "y"):
-        #load fastrack settings
-        _swap_from = cur_fast_track['swap']['from']
-        _swap_to = cur_fast_track['swap']['to']
+    elif (choice.lower() == "encrypt"):
 
-        #sample time
-        start = time.time()
+        #hash key
+        if (input("\nuse a hashed key? y/n :// ").lower() == "y"):
+            to_hash = input("\nenter key to be hashed :// ")
+            password = hash_md5(to_hash)
+            
 
-        #perform function
-        try:
-            swap_file_extensions(aes_dir,_swap_from,_swap_to)
-        except Exception as e:
-            print(e)
-            input()
-    else:
+        #raw key
+        else:
+            password = input("\nenter raw decryption key :// ")
         
-        _swap_from = input("\nswap from e.g .png :// ")
-        _swap_to = input("swap from e.g .jpg :// ")
+        if (input(f"\nuse FastTrack settings? \ndelete: {cur_fast_track['encrypt']['delete']} \nbackup: {cur_fast_track['encrypt']['backup']} \ny/n? :// ").lower() == "y"):
 
-        #check for invalid input
-        if len(_swap_from) < 4 or len(_swap_to) < 4:
-            print("\ninvalid input the program will exit in 5 seconds")
-            time.sleep(5)
-            sys.exit()
+            #load fast track settings
+            _backup = cur_fast_track['encrypt']['backup']
+            _delete = cur_fast_track['encrypt']['delete']
+            _secure = False
 
-        #sample time
-        start = time.time()
+            #perform function
+            try:
+                encrypt_directory(aes_dir,_delete,_secure,_backup,password)
+            except Exception as e:
+                print(e)
+                input()
 
-        #perform function
-        try:
-            swap_file_extensions(aes_dir,_swap_from,_swap_to)
-        except Exception as e:
-            print(e)
-            input()
-        #save fastrack settings
-        end = time.time()
-        if (input("\nsave to fast track? y/n :// ").lower() == "y"):
-            cur_fast_track['swap']['from'] = _swap_from
-            cur_fast_track['swap']['to'] = _swap_to
-            with open(config_dir,"w") as f:
-                json.dump(cur_fast_track,f)
-                f.close()
+            #sample time
+            start = time.time()
+            
+        else:
+            
+            _delete = False
+            _secure = False
+            _backup = False
+            
+            if (input("\ndelete unencrypted version? y/n :// ").lower() == "y"):
+                _delete = True
+                _secure = True
                 
-else:
-    print("\nnothing selected. program will exit in 5 seconds")
+            if (input("backup encrypted file in appdata? y/n :// ").lower() == "y"):
+                _backup = True
+
+            #sample time
+            start = time.time()
+            
+            print("\n")
+
+            #perform function
+            try:
+                encrypt_directory(aes_dir,_delete,_secure,_backup,password)
+            except Exception as e:
+                print(e)
+                input()
+            #save settings to fastrack
+            end = time.time()
+            if (input("\nsave to fast track? y/n :// ").lower() == "y"):
+                cur_fast_track['encrypt']['delete'] = _delete
+                cur_fast_track['encrypt']['backup'] = _backup
+                with open(config_dir,"w") as f:
+                    json.dump(cur_fast_track,f)
+                    f.close()
+                    
+    elif (choice.lower() == "swap"):
+        
+        if (input(f"\nuse FastTrack settings? \nfrom: {cur_fast_track['swap']['from']} \nto: {cur_fast_track['swap']['to']} \ny/n? :// ").lower() == "y"):
+            #load fastrack settings
+            _swap_from = cur_fast_track['swap']['from']
+            _swap_to = cur_fast_track['swap']['to']
+
+            #sample time
+            start = time.time()
+
+            #perform function
+            try:
+                swap_file_extensions(aes_dir,_swap_from,_swap_to)
+            except Exception as e:
+                print(e)
+                input()
+        else:
+            
+            _swap_from = input("\nswap from e.g .png :// ")
+            _swap_to = input("swap from e.g .jpg :// ")
+
+            #check for invalid input
+            if len(_swap_from) < 4 or len(_swap_to) < 4:
+                print("\ninvalid input the program will exit in 5 seconds")
+                time.sleep(5)
+                sys.exit()
+
+            #sample time
+            start = time.time()
+
+            #perform function
+            try:
+                swap_file_extensions(aes_dir,_swap_from,_swap_to)
+            except Exception as e:
+                print(e)
+                input()
+            #save fastrack settings
+            end = time.time()
+            if (input("\nsave to fast track? y/n :// ").lower() == "y"):
+                cur_fast_track['swap']['from'] = _swap_from
+                cur_fast_track['swap']['to'] = _swap_to
+                with open(config_dir,"w") as f:
+                    json.dump(cur_fast_track,f)
+                    f.close()
+                    
+    else:
+        print("\nnothing selected. program will exit in 5 seconds")
+        time.sleep(5)
+        sys.exit()
+        
+    new_num_files = count_files(aes_dir)
+    new_num_folders = count_folders(aes_dir)
+    new_file_size = size_to_rational(count_size(aes_dir))
+    if not end:
+        end = time.time()
+    if not start:
+        start = 0
+    time.sleep(3)
+    print(f"\ntime elapsed {end-start} seconds")
+    print(f"\nnet file gain: {new_num_files-num_files}\nnet folder gain: {new_num_folders-num_folders}\nnew file size: {new_file_size}\n")
+    print("-------------------------------------------console will close in 5 seconds--------------------------------------------")
     time.sleep(5)
-    sys.exit()
-    
-new_num_files = count_files(aes_dir)
-new_num_folders = count_folders(aes_dir)
-new_file_size = size_to_rational(count_size(aes_dir))
-if not end:
-    end = time.time()
-print(f"\ntime elapsed {end-start} seconds")
-print(f"\nnet file gain: {new_num_files-num_files}\nnet folder gain: {new_num_folders-num_folders}\nnew file size: {new_file_size}\n")
-print("-------------------------------------------console will close in 5 seconds--------------------------------------------")
-time.sleep(5)
